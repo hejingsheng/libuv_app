@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "uv/include/uv11.hpp"
-#include "uv/include/ssl/Tls.hpp"
+#include "uv/include/ssl/Dtls.hpp"
 
 #if 0
 #include <stdio.h>
@@ -218,21 +218,21 @@ int main(int argc, char *argv[])
 	std::cout << "Libuv Base SSL" << std::endl;
 
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
-	uv::SocketAddr addr("192.168.0.200", 8443);
-	uv::TcpClient client(loop, true);
+	//uv::SocketAddr addr("192.168.0.200", 8443);
+	//uv::TcpClient client(loop, true);
 
-	client.setConnectStatusCallback([](uv::TcpClient::ConnectStatus status) {
-		std::cout << "connect status:" << status << std::endl;
-	});
-	client.setMessageCallback([&client](const char* data, ssize_t size) {
-		char data1[100] = { 0 };
-		memcpy(data1, data, size);
-		std::cout << "recv data:" << data1 << std::endl;
-		client.writeTls(data1, size, nullptr);
-	});
+	//client.setConnectStatusCallback([](uv::TcpClient::ConnectStatus status) {
+	//	std::cout << "connect status:" << status << std::endl;
+	//});
+	//client.setMessageCallback([&client](const char* data, ssize_t size) {
+	//	char data1[100] = { 0 };
+	//	memcpy(data1, data, size);
+	//	std::cout << "recv data:" << data1 << std::endl;
+	//	client.writeTls(data1, size, nullptr);
+	//});
 
-	client.connect(addr);
-	loop->run();
+	//client.connect(addr);
+	//loop->run();
 
 	//uv::TcpServer server(loop, true);
 	//server.init("server1.cert", "server1.key");
@@ -254,6 +254,37 @@ int main(int argc, char *argv[])
 
 	//uv::SocketAddr addr("0.0.0.0", 8443, uv::SocketAddr::Ipv4);
 	//server.bindAndListen(addr);
+	//loop->run();
+
+	uv::SocketAddr addr("192.168.0.200", 5000);
+	Dtls::DtlsClient client(loop, addr);
+	client.init("", "");
+
+	loop->run();
+
+	//uv::SocketAddr addr3("127.0.0.1", 10003);
+	//uv::Udp udpReceive(loop);
+	//udpReceive.setMessageCallback(
+	//	[&udpReceive](uv::SocketAddr& from, const char* data, unsigned size)
+	//{
+	//	std::string msg(data, size);
+	//	std::cout << "udp receive message from " << from.toStr() << " :" << msg << std::endl;
+	//	udpReceive.send(from, data, size);
+	//});
+	//udpReceive.bindAndRead(addr3);
+
+	//uv::SocketAddr addr4("127.0.0.1", 10004);
+	//uv::Udp udpSend(loop);
+	//udpSend.setMessageCallback(
+	//	[](uv::SocketAddr& from, const char* data, unsigned size)
+	//{
+	//	std::string msg(data, size);
+	//	std::cout << "udp call message :" << msg << std::endl;;
+	//});
+	//udpSend.bindAndRead(addr4);
+	//char udpmsg[] = "udp test...";
+	//udpSend.send(addr3, udpmsg, sizeof(udpmsg));
+
 	//loop->run();
 
 	return 0;
