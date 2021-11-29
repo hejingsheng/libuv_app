@@ -256,8 +256,17 @@ int main(int argc, char *argv[])
 	//server.bindAndListen(addr);
 	//loop->run();
 
-	uv::SocketAddr addr("192.168.0.200", 5000);
+	uv::SocketAddr addr("192.168.1.4", 5000);
 	Dtls::DtlsClient client(loop, addr);
+	client.setDtlsHandShakeDone([](void) {
+		std::cout << "Dtls Connect success" << std::endl;
+	});
+	client.setMessageCallback([&client](uv::SocketAddr &addr, const char *buf, unsigned int size) {
+		char data[100] = { 0 };
+		memcpy(data, buf, size);
+		std::cout << "Recv data:" << data << std::endl;
+		client.write(data, size);
+	});
 	client.init("", "");
 
 	loop->run();

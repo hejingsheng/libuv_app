@@ -15,6 +15,9 @@ extern "C"
 
 namespace Dtls
 {
+	using DtlsMessageCallback = std::function<void(uv::SocketAddr&, const char*, unsigned)>;
+	using DtlsHandShakeDone = std::function<void(void)>;
+
 	class DtlsBase
 	{
 	public:
@@ -54,12 +57,21 @@ namespace Dtls
 		virtual int init(std::string cert, std::string key);
 		virtual void onMessage(uv::SocketAddr &addr, const char *buf, unsigned int size);
 
+	public:
+		void write(const char *buf, unsigned int size);
+		void close();
+		void setMessageCallback(DtlsMessageCallback callback);
+		void setDtlsHandShakeDone(DtlsHandShakeDone callback);
+
 	private:
 		void send_bio_data();
 
 	private:
 		uv::SocketAddr *addr_;
 		bool dtlsConnect_;
+
+		DtlsHandShakeDone dtlsHandShakeDone_;
+		DtlsMessageCallback dtlsMessageCallback_;
 	};
 
 }

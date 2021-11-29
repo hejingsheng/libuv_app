@@ -154,6 +154,10 @@ namespace Dtls
 			{
 				uv::LogWriter::Instance()->info("DTLS connect success");
 				dtlsConnect_ = true;
+				if (dtlsHandShakeDone_)
+				{
+					dtlsHandShakeDone_();
+				}
 			}
 		}
 		else
@@ -178,9 +182,51 @@ namespace Dtls
 			}
 			else
 			{
-				
+				if (dtlsMessageCallback_)
+				{
+					dtlsMessageCallback_(addr, buf, ret);
+				}
 			}
 		}
+	}
+
+	void DtlsClient::write(const char *buf, unsigned int size)
+	{
+		int err;
+		char *data = NULL;
+		int len;
+		SSL_write(ssl_, buf, size);
+		len = BIO_get_mem_data(wbio_, &data);
+		if (len > 0 && data != NULL)
+		{
+			uv::SocketAddr addr("192.168.1.4", 8443);
+			udpSocekt_->send(addr, data, len);
+			BIO_reset(wbio_);
+		}
+		else
+		{
+
+		};
+	}
+
+	void DtlsClient::close()
+	{
+		if (ssl_ != NULL)
+		{
+			SSL_free(ssl_);
+			ssl_ = NULL;
+		}
+		udpSocekt_->close(nullptr);
+	}
+
+	void DtlsClient::setMessageCallback(DtlsMessageCallback callback)
+	{
+		dtlsMessageCallback_ = callback;
+	}
+
+	void DtlsClient::setDtlsHandShakeDone(DtlsHandShakeDone callback)
+	{
+		dtlsHandShakeDone_ = callback;
 	}
 
 	void DtlsClient::send_bio_data()
@@ -192,7 +238,7 @@ namespace Dtls
 		if (data != NULL && len > 0)
 		{
 			BIO_reset(rbio_);
-			uv::SocketAddr addr("192.168.0.200", 8443);
+			uv::SocketAddr addr("192.168.1.4", 8443);
 			udpSocekt_->send(addr, data, len);
 			BIO_reset(wbio_);
 		}
