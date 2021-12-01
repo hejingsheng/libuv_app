@@ -12,21 +12,49 @@ extern "C"
 #include "openssl/err.h"
 }
 #include "uv/include/Udp.hpp"
+#include "uv/include/Timer.hpp"
 
 namespace Dtls
 {
-	using DtlsMessageCallback = std::function<void(uv::SocketAddr&, const char*, unsigned)>;
-	using DtlsHandShakeDone = std::function<void(void)>;
+
+	enum DtlsState {
+		DtlsStateInit, // Start.
+		DtlsStateClientHello, // Should start ARQ thread.
+		DtlsStateServerHello, // We are in the first ARQ state.
+		DtlsStateClientCertificate, // Should start ARQ thread again.
+		DtlsStateServerDone, // We are in the second ARQ state.
+		DtlsStateClientDone, // Done.
+	};
+
+	enum DtlsRole {
+		DtlsRoleServer,
+		DtlsRoleClient,
+	};
+
+	class IDtlsCallback
+	{
+	public:
+		virtual void onDtlsHandShakeDone() = 0;
+		virtual void onDtlsRecvData(const char *data, unsigned int len) = 0;
+		virtual void onDtlsSendData(const char *data, unsigned int len) = 0;
+		virtual void onDtlsAlert(std::string type, std::string desc) = 0;
+	};
 
 	class DtlsBase
 	{
 	public:
-		DtlsBase(uv::EventLoop *loop);
+		DtlsBase(IDtlsCallback *callback);
 		virtual ~DtlsBase();
 
+	public:
+		virtual int init(std::string cert, std::string key, DtlsRole role);
+		virtual void onMessage(const char *buf, unsigned int size) = 0;
+		virtual int startHandShake() = 0;
+		virtual void writeData(const char *buf, unsigned int size);
+		virtual void alertCallback(std::string type, std::string desc);
+
 	protected:
-		virtual int init(std::string cert, std::string key);
-		virtual void onMessage(uv::SocketAddr &addr, const char *buf, unsigned int size);
+		void send_bio_data();
 
 	protected:
 		SSL_CTX *ctx_;
@@ -34,44 +62,46 @@ namespace Dtls
 		BIO *rbio_;
 		BIO *wbio_;
 
-		uv::Udp *udpSocekt_;
+		IDtlsCallback *dtlsCallback_;
 	};
 
 	class DtlsServer : public DtlsBase
 	{
 	public:
-		DtlsServer(uv::EventLoop *loop);
+		DtlsServer(IDtlsCallback *callback);
 		virtual ~DtlsServer();
 
+	public:
+		virtual int init(std::string cert, std::string key, DtlsRole role);
+		virtual void onMessage(const char *buf, unsigned int size);
+		virtual int startHandShake();
+
 	private:
+		bool dtlsConnect_ = false;
+		DtlsState dtlsStatus_;
 
 	};
 
 	class DtlsClient: public DtlsBase
 	{
 	public:
-		DtlsClient(uv::EventLoop *loop, uv::SocketAddr &addr);
+		DtlsClient(uv::EventLoop *loop, IDtlsCallback *callback);
 		virtual ~DtlsClient();
 
 	public:
-		virtual int init(std::string cert, std::string key);
-		virtual void onMessage(uv::SocketAddr &addr, const char *buf, unsigned int size);
-
-	public:
-		void write(const char *buf, unsigned int size);
-		void close();
-		void setMessageCallback(DtlsMessageCallback callback);
-		void setDtlsHandShakeDone(DtlsHandShakeDone callback);
+		virtual int init(std::string cert, std::string key, DtlsRole role);
+		virtual void onMessage(const char *buf, unsigned int size);
+		virtual int startHandShake();
 
 	private:
-		void send_bio_data();
+		void startRetransmitTimer();
 
 	private:
-		uv::SocketAddr *addr_;
 		bool dtlsConnect_;
+		DtlsState dtlsStatus_;
+		int retryTime;
 
-		DtlsHandShakeDone dtlsHandShakeDone_;
-		DtlsMessageCallback dtlsMessageCallback_;
+		uv::Timer *arqTimer_;
 	};
 
 }

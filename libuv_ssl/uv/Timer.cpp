@@ -37,6 +37,18 @@ void Timer::start()
     }
 }
 
+void Timer::stop()
+{
+	if (started_)
+	{
+		if (uv_is_active((uv_handle_t*)handle_))
+		{
+			::uv_timer_stop(handle_);
+		}
+		started_ = false;
+	}
+}
+
 void Timer::close(TimerCloseComplete callback)
 {
     closeComplete_ = callback;
@@ -67,6 +79,10 @@ void Timer::setTimerRepeat(uint64_t ms)
     ::uv_timer_set_repeat(handle_, ms);
 }
 
+void Timer::setTimeout(uint64_t ms)
+{
+	timeout_ = ms;
+}
 
 void Timer::onTimeOut()
 {

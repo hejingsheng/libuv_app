@@ -26,8 +26,10 @@ public:
     virtual ~Timer();
 
     void start();
+	void stop();
     void close(TimerCloseComplete callback);
     void setTimerRepeat(uint64_t ms);
+	void setTimeout(uint64_t ms);
 
 private:
     bool started_;

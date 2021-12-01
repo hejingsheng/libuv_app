@@ -2,6 +2,7 @@
 
 #include "uv/include/uv11.hpp"
 #include "uv/include/ssl/Dtls.hpp"
+#include "uv/include/Timer.hpp"
 
 #if 0
 #include <stdio.h>
@@ -213,11 +214,61 @@ int main()
 	return 0;
 }
 #else
+uv::SocketAddr *global_addr;
+class DtlsCallbackImpl : public Dtls::IDtlsCallback
+{
+public:
+	DtlsCallbackImpl(uv::Udp *udp)
+	{
+		udpSocket = udp;
+	}
+
+	~DtlsCallbackImpl()
+	{
+
+	}
+
+	void onDtlsHandShakeDone()
+	{}
+
+	void onDtlsRecvData(const char *data, unsigned int len)
+	{
+
+	}
+
+	void onDtlsSendData(const char *data, unsigned int len)
+	{
+		//uv::SocketAddr addr("192.168.0.200", 8443);
+		udpSocket->send(*global_addr, data, len);
+	}
+
+	void onDtlsAlert(std::string type, std::string desc)
+	{
+	}
+
+private:
+	uv::Udp *udpSocket;
+};
+
 int main(int argc, char *argv[])
 {
 	std::cout << "Libuv Base SSL" << std::endl;
 
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
+
+	uv::Udp udpSocket(loop);
+	uv::SocketAddr addr("192.168.0.200", 8443);
+	Dtls::DtlsServer dtlsServer(new DtlsCallbackImpl(&udpSocket));
+	dtlsServer.init("server1.cert","server1.key",Dtls::DtlsRole::DtlsRoleServer);
+	udpSocket.bindAndRead(addr);
+	udpSocket.setMessageCallback([&dtlsServer](uv::SocketAddr& from, const char* data, unsigned size) {
+		global_addr = new uv::SocketAddr(from.Addr());
+		dtlsServer.onMessage(data, size);
+		//dtlsClient.writeData(data, size);
+	});
+	dtlsServer.startHandShake();
+	loop->run();
+
 	//uv::SocketAddr addr("192.168.0.200", 8443);
 	//uv::TcpClient client(loop, true);
 
@@ -256,20 +307,20 @@ int main(int argc, char *argv[])
 	//server.bindAndListen(addr);
 	//loop->run();
 
-	uv::SocketAddr addr("192.168.1.4", 5000);
-	Dtls::DtlsClient client(loop, addr);
-	client.setDtlsHandShakeDone([](void) {
-		std::cout << "Dtls Connect success" << std::endl;
-	});
-	client.setMessageCallback([&client](uv::SocketAddr &addr, const char *buf, unsigned int size) {
-		char data[100] = { 0 };
-		memcpy(data, buf, size);
-		std::cout << "Recv data:" << data << std::endl;
-		client.write(data, size);
-	});
-	client.init("", "");
+	//uv::SocketAddr addr("192.168.1.4", 5000);
+	//Dtls::DtlsClient client(loop, addr);
+	//client.setDtlsHandShakeDone([](void) {
+	//	std::cout << "Dtls Connect success" << std::endl;
+	//});
+	//client.setMessageCallback([&client](uv::SocketAddr &addr, const char *buf, unsigned int size) {
+	//	char data[100] = { 0 };
+	//	memcpy(data, buf, size);
+	//	std::cout << "Recv data:" << data << std::endl;
+	//	client.write(data, size);
+	//});
+	////client.init("", "");
 
-	loop->run();
+	//loop->run();
 
 	//uv::SocketAddr addr3("127.0.0.1", 10003);
 	//uv::Udp udpReceive(loop);
