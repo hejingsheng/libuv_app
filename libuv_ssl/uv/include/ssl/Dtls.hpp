@@ -38,6 +38,8 @@ namespace Dtls
 		virtual void onDtlsRecvData(const char *data, unsigned int len) = 0;
 		virtual void onDtlsSendData(const char *data, unsigned int len) = 0;
 		virtual void onDtlsAlert(std::string type, std::string desc) = 0;
+
+		virtual ~IDtlsCallback() = default;
 	};
 
 	class DtlsBase

@@ -3,6 +3,7 @@
 #include "uv/include/uv11.hpp"
 #include "uv/include/ssl/Dtls.hpp"
 #include "uv/include/Timer.hpp"
+#include "uv/include/UdpListener.hpp"
 
 #if 0
 #include <stdio.h>
@@ -215,7 +216,7 @@ int main()
 }
 #else
 uv::SocketAddr *global_addr;
-class DtlsCallbackImpl : public Dtls::IDtlsCallback
+class DtlsCallbackImpl : public Dtls::IDtlsCallback, public udpListen::IUdpListenCallback
 {
 public:
 	DtlsCallbackImpl(uv::Udp *udp)
@@ -246,6 +247,11 @@ public:
 	{
 	}
 
+	void onUdpMsgRecv(uv::SocketAddr &addr, const char *data, unsigned int len)
+	{
+		std::cout << "recv:" << data << std::endl;
+	}
+
 private:
 	uv::Udp *udpSocket;
 };
@@ -256,21 +262,28 @@ int main(int argc, char *argv[])
 
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
 
-	uv::Udp udpSocket(loop);
-	uv::SocketAddr addr("192.168.0.200", 8443);
-	Dtls::DtlsServer dtlsServer(new DtlsCallbackImpl(&udpSocket));
-	dtlsServer.init("server1.cert","server1.key",Dtls::DtlsRole::DtlsRoleServer);
-	udpSocket.bindAndRead(addr);
-	udpSocket.setMessageCallback([&dtlsServer](uv::SocketAddr& from, const char* data, unsigned size) {
-		global_addr = new uv::SocketAddr(from.Addr());
-		dtlsServer.onMessage(data, size);
-		//dtlsClient.writeData(data, size);
-	});
-	dtlsServer.startHandShake();
+	udpListen::UdpListener udplistener(loop, new DtlsCallbackImpl(nullptr));
+	udplistener.init(8000);
+	udplistener.startListen();
+
 	loop->run();
 
+
+	//uv::Udp udpSocket(loop);
 	//uv::SocketAddr addr("192.168.0.200", 8443);
-	//uv::TcpClient client(loop, true);
+	//Dtls::DtlsServer dtlsServer(new DtlsCallbackImpl(&udpSocket));
+	//dtlsServer.init("server1.cert","server1.key",Dtls::DtlsRole::DtlsRoleServer);
+	//udpSocket.bindAndRead(addr);
+	//udpSocket.setMessageCallback([&dtlsServer](uv::SocketAddr& from, const char* data, unsigned size) {
+	//	global_addr = new uv::SocketAddr(from.Addr());
+	//	dtlsServer.onMessage(data, size);
+	//	//dtlsClient.writeData(data, size);
+	//});
+	//dtlsServer.startHandShake();
+	//loop->run();
+
+	//uv::SocketAddr addr("192.168.0.29", 6000);
+	//uv::TcpClient client(loop, false);
 
 	//client.setConnectStatusCallback([](uv::TcpClient::ConnectStatus status) {
 	//	std::cout << "connect status:" << status << std::endl;
@@ -279,7 +292,7 @@ int main(int argc, char *argv[])
 	//	char data1[100] = { 0 };
 	//	memcpy(data1, data, size);
 	//	std::cout << "recv data:" << data1 << std::endl;
-	//	client.writeTls(data1, size, nullptr);
+	//	//client.writeTls(data1, size, nullptr);
 	//});
 
 	//client.connect(addr);
