@@ -4,6 +4,7 @@
 #include "uv/include/ssl/Dtls.hpp"
 #include "uv/include/Timer.hpp"
 #include "uv/include/UdpListener.hpp"
+#include "app/stun.h"
 
 #if 0
 #include <stdio.h>
@@ -216,21 +217,23 @@ int main()
 }
 #else
 uv::SocketAddr *global_addr;
-class DtlsCallbackImpl : public Dtls::IDtlsCallback, public udpListen::IUdpListenCallback
+class testClass : public Dtls::IDtlsCallback, public udpListen::IUdpListenCallback, public uv_app::IStunCallback
 {
 public:
-	DtlsCallbackImpl(uv::Udp *udp)
+	testClass(uv::Udp *udp)
 	{
 		udpSocket = udp;
 	}
 
-	~DtlsCallbackImpl()
+	~testClass()
 	{
 
 	}
 
 	void onDtlsHandShakeDone()
-	{}
+	{
+
+	}
 
 	void onDtlsRecvData(const char *data, unsigned int len)
 	{
@@ -252,6 +255,22 @@ public:
 		std::cout << "recv:" << data << std::endl;
 	}
 
+	void onStunFail(uv_app::StunCallbackErrCode err)
+	{
+
+	}
+
+	void onStunNatMap(uv::SocketAddr &addr)
+	{
+		std::cout << "map addr:" << addr.toStr() << std::endl;
+	}
+	
+	void onStunSendData(const char *data, int len)
+	{
+		uv::SocketAddr addr("8.135.38.10", 3478);
+		udpSocket->send(addr, data, len);
+	}
+
 private:
 	uv::Udp *udpSocket;
 };
@@ -259,14 +278,28 @@ private:
 int main(int argc, char *argv[])
 {
 	std::cout << "Libuv Base SSL" << std::endl;
-
+	std::string name = "test";
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
+	uv::Udp udpSocket(loop);
+	uv_app::STUNClient stunclient(loop, name);
+	uv::SocketAddr addr("0.0.0.0", 5000);
+	udpSocket.bindAndRead(addr);
+	udpSocket.setMessageCallback([&stunclient](uv::SocketAddr &addr, const char* data, unsigned int len) {
 
-	udpListen::UdpListener udplistener(loop, new DtlsCallbackImpl(nullptr));
-	udplistener.init(8000);
-	udplistener.startListen();
+		stunclient.onRecvStunData(data, len);
+	});
+	stunclient.init(new testClass(&udpSocket));
+	stunclient.startStun();
+
 
 	loop->run();
+
+
+	//udpListen::UdpListener udplistener(loop, new testClass(nullptr));
+	//udplistener.init(8000);
+	//udplistener.startListen();
+
+	//loop->run();
 
 
 	//uv::Udp udpSocket(loop);
