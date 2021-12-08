@@ -267,7 +267,9 @@ public:
 	
 	void onStunSendData(const char *data, int len)
 	{
-		uv::SocketAddr addr("8.135.38.10", 3478);
+		uv::SocketAddr addr("47.88.86.177", 3478);
+		//uv::SocketAddr addr("192.168.0.200", 3478);
+		//udpSocket->send(*global_addr, data, len);
 		udpSocket->send(addr, data, len);
 	}
 
@@ -282,14 +284,17 @@ int main(int argc, char *argv[])
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
 	uv::Udp udpSocket(loop);
 	uv_app::STUNClient stunclient(loop, name);
+	//uv_app::STUNServer stunserver;
 	uv::SocketAddr addr("0.0.0.0", 5000);
 	udpSocket.bindAndRead(addr);
 	udpSocket.setMessageCallback([&stunclient](uv::SocketAddr &addr, const char* data, unsigned int len) {
 
+		global_addr = new uv::SocketAddr(addr.Addr());
 		stunclient.onRecvStunData(data, len);
+		//stunserver.responseStun(addr);
 	});
 	stunclient.init(new testClass(&udpSocket));
-	stunclient.startStun();
+	stunclient.requestStun();
 
 
 	loop->run();

@@ -9,7 +9,6 @@
 
 namespace uv_app
 {
-
 	enum StunMessageType
 	{
 		StunBindRequest         = 0x0001,
@@ -84,16 +83,50 @@ namespace uv_app
 		void decode(const char *data, int len);
 	};
 
-	class STUNClient
+	class STUNBase
+	{
+	public:
+		STUNBase();
+		virtual ~STUNBase();
+
+	public:
+		virtual void init(IStunCallback *callback);
+		virtual void onRecvStunData(const char *data, int len);
+
+	public:
+		virtual void requestStun() = 0;
+		virtual void responseStun(uv::SocketAddr &addr) = 0;
+
+	protected:
+		IStunCallback *stunCb_;
+		StunMsgPacket packet;
+	};
+
+	class STUNServer : public STUNBase
+	{
+	public:
+		STUNServer();
+		virtual ~STUNServer();
+
+	public:
+		virtual void responseStun(uv::SocketAddr &addr);
+		virtual void requestStun();
+
+	private:
+		void buildBindResponse(char *data, int size, int &len, uv::SocketAddr &addr);
+		
+	};
+
+	class STUNClient : public STUNBase
 	{
 	public:
 		STUNClient(uv::EventLoop *loop, std::string username);
 		virtual ~ STUNClient();
 
 	public:
-		void init(IStunCallback *callback);
-		void startStun();
-		void onRecvStunData(const char *data, int len);
+		virtual void requestStun();
+		virtual void responseStun(uv::SocketAddr &addr);
+		virtual void onRecvStunData(const char *data, int len);
 
 	private:
 		void startRetransmitTimer();
@@ -101,7 +134,6 @@ namespace uv_app
 
 	private:
 		uv::Timer *retryTimer_;
-		IStunCallback *stunCb_;
 
 		int maxRetryNum;
 		int initRtt;

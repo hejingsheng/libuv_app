@@ -1,6 +1,7 @@
 #include <sstream>
 #include "string.h"
 #include "stun.h"
+
 #define LITTLEENDIAN_ARCH 1
 namespace uv_app
 {
@@ -240,6 +241,7 @@ namespace uv_app
 					char *tmp = inet_ntoa(addr);
 					ostr << tmp << ":" << port;
 					stunAttribute.insert(std::make_pair(XorMappedAddress, ostr.str()));
+					ostr.str("");
 				}
 				break;
 				case MappedAddress:
@@ -254,6 +256,7 @@ namespace uv_app
 					char *tmp = inet_ntoa(addr);
 					ostr << tmp << ":" << port;
 					stunAttribute.insert(std::make_pair(MappedAddress, ostr.str()));
+					ostr.str("");
 				}
 				break;
 				default:
@@ -270,6 +273,73 @@ namespace uv_app
 		{
 
 		}
+	}
+
+	STUNBase::STUNBase()
+	{
+
+	}
+
+	STUNBase::~STUNBase()
+	{
+		stunCb_ = nullptr;
+	}
+
+	void STUNBase::init(IStunCallback *callback)
+	{
+		stunCb_ = callback;
+	}
+
+	void STUNBase::onRecvStunData(const char *data, int len)
+	{
+		packet.decode(data, len);
+	}
+
+	STUNServer::STUNServer()
+	{
+
+	}
+
+	STUNServer::~STUNServer()
+	{
+
+	}
+
+	void STUNServer::responseStun(uv::SocketAddr &addr)
+	{
+		char msg[1024] = { 0 };
+		int len;
+
+		buildBindResponse(msg, sizeof(msg), len, addr);
+		if (stunCb_)
+		{
+			stunCb_->onStunSendData(msg, len);
+		}
+	}
+
+	void STUNServer::requestStun()
+	{
+		return;
+	}
+
+	void STUNServer::buildBindResponse(char *data, int size, int &len, uv::SocketAddr &addr)
+	{
+		StunMsgPacket stunMsg;
+		stunMsg.stunMsgType = StunBindRespones;
+		stunMsg.stunMagicCookie = 0x2112a442;
+		for (int i = 0; i < 12; i++)
+		{
+			stunMsg.stunTranId[i] = packet.stunTranId[i];
+		}
+		if (packet.stunAttribute.find(Username) != packet.stunAttribute.end())
+		{
+			stunMsg.stunAttribute.insert(std::make_pair(Username, packet.stunAttribute.find(Username)->second));
+		}
+		stunMsg.stunAttribute.insert(std::make_pair(XorMappedAddress, addr.toStr()));
+		stunMsg.stunAttribute.insert(std::make_pair(MappedAddress, addr.toStr()));
+		stunMsg.stunAttribute.insert(std::make_pair(Software, "Libuv App StunServer(HeJingsheng)"));
+		stunMsg.encode(data, size);
+		len = stunMsg.stunMsgLenght + 20;
 	}
 
 	STUNClient::STUNClient(uv::EventLoop *loop, std::string username) : username_(username)
@@ -302,7 +372,7 @@ namespace uv_app
 			else
 			{
 				initRtt = initRtt * 2;
-				startStun();
+				requestStun();
 			}
 		}
 	}
@@ -329,12 +399,7 @@ namespace uv_app
 		len = stunMsg.stunMsgLenght + 20;
 	}
 
-	void STUNClient::init(IStunCallback *callback)
-	{
-		stunCb_ = callback;
-	}
-
-	void STUNClient::startStun()
+	void STUNClient::requestStun()
 	{
 		char msg[1024] = { 0 };
 		int len;
@@ -349,10 +414,14 @@ namespace uv_app
 		retryTimer_->start();
 	}
 
+	void STUNClient::responseStun(uv::SocketAddr &addr)
+	{
+		return;
+	}
+
 	void STUNClient::onRecvStunData(const char *data, int len)
 	{
-		StunMsgPacket packet;
-		packet.decode(data, len);
+		STUNBase::onRecvStunData(data, len);
 		if (packet.stunAttribute.find(XorMappedAddress) == packet.stunAttribute.end() && packet.stunAttribute.find(MappedAddress) == packet.stunAttribute.end())
 		{
 			stunCb_->onStunFail(StunErrorServer);
@@ -373,6 +442,7 @@ namespace uv_app
 			std::string ipaddr;
 
 			ipaddr = value.substr(0, pos);
+			const char *t = value.substr(pos + 1).c_str();
 			port = atoi(value.substr(pos + 1).c_str());
 			uv::SocketAddr sockaddr(ipaddr, port);
 			stunCb_->onStunNatMap(sockaddr);
