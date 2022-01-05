@@ -25,26 +25,23 @@ struct WsHeader
 	int decode(const char *header, int length);
 };
 
-class WebSocketProtocol
+class WebSocketProtocolBase
 {
 public:
-	WebSocketProtocol();
-	virtual ~WebSocketProtocol();
+	WebSocketProtocolBase();
+	virtual ~WebSocketProtocolBase();
 
 public:
-	// 0 success -1 fail  1 processing
-	int doHandShake(const char *data, int len);
-	int doResponse(std::string &response);
+	virtual int doHandShake(std::string &handshakedata) = 0;
+	virtual int doResponse(std::string &responsedata) = 0;
 	int encodeData(const char *data, int len, std::string &dest);
 	int decodeData(const char *data, int len, std::string &dest, bool &finish);
 	bool isConnected() const { return bIsConnect; }
 	void close();
-	
-private:
-	int parse_line(std::string &line);
-	int parse_attribute(std::string &line);
+public:
+	virtual void initParam(int method, std::string &path, std::string &host, std::string &extensions) = 0;
 
-private:
+protected:
 	DataRingBuf *rbuf_;
 
 	int method;   //0 GET  1 POST
@@ -60,16 +57,44 @@ private:
 	std::string accept;
 
 	bool bIsConnect;
+
 };
 
-class WebSocketProtocolClient
+class WebSocketProtocolServer : public WebSocketProtocolBase
+{
+public:
+	WebSocketProtocolServer();
+	virtual ~WebSocketProtocolServer();
+
+public:
+	// 0 success -1 fail  1 processing
+	virtual int doHandShake(std::string &handshakedata);
+	virtual int doResponse(std::string &responsedata);
+	virtual void initParam(int method, std::string &path, std::string &host, std::string &extensions);
+	
+private:
+	int parse_line(std::string &line);
+	int parse_attribute(std::string &line);
+};
+
+class WebSocketProtocolClient : public WebSocketProtocolBase
 {
 public:
 	WebSocketProtocolClient();
 	virtual ~WebSocketProtocolClient();
 
 public:
-	int doHandShake(std::string handshake);
+	virtual int doHandShake(std::string &handshakedata);
+	virtual int doResponse(std::string &responsedata);
+	virtual void initParam(int method, std::string &path, std::string &host, std::string &extensions);
+
+private:
+	int parse_line(std::string &line);
+	int parse_attribute(std::string &line);
+
+private:
+	std::string user_agent;
+	std::string code;
 };
 
 #endif

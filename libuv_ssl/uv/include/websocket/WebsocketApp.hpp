@@ -21,7 +21,7 @@ namespace uv
 			void onMesage(TcpConnectionPtr conn, const char* data, ssize_t size);
 
 		private:
-			std::unordered_map<std::string, WebSocketProtocol*> connMap_;
+			std::unordered_map<std::string, WebSocketProtocolBase*> connMap_;
 		};
 
 		class WebSocketClient
@@ -39,7 +39,7 @@ namespace uv
 
 		private:
 			uv::TcpClient *client_;
-			WebSocketProtocol *wsProtocol_;
+			WebSocketProtocolClient *wsProtocol_;
 		};
 	};
 }

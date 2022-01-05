@@ -5,7 +5,7 @@
 #include "uv/include/Timer.hpp"
 #include "uv/include/UdpListener.hpp"
 #include "app/stun.h"
-#include "uv/include/websocket/WebsocketServer.hpp"
+#include "uv/include/websocket/WebsocketApp.hpp"
 
 #if 0
 #include <stdio.h>
@@ -284,9 +284,13 @@ int main(int argc, char *argv[])
 	std::string name = "test";
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
 
-	uv::websocket::WebSocketServer wsServer(loop);
-	uv::SocketAddr addr("0.0.0.0", 5000);
-	wsServer.bindAndListen(addr);
+	uv::websocket::WebSocketClient wsClient(loop);
+	uv::SocketAddr addr("121.40.165.18", 8800);
+	wsClient.connect(addr);
+
+	//uv::websocket::WebSocketServer wsServer(loop);
+	//uv::SocketAddr addr("0.0.0.0", 5000);
+	//wsServer.bindAndListen(addr);
 	//uv::Udp udpSocket(loop);
 	//uv_app::STUNClient stunclient(loop, name);
 	////uv_app::STUNServer stunserver;

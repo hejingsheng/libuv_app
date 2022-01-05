@@ -1,9 +1,27 @@
 #include <string>
 #include <sstream>
 #include <ctime>
+#include <iostream>
+#include <functional>
+#include <algorithm>
 #include "wsProtocol.h"
 #include "string.h"
 #include "sha1.h"
+
+static std::string generateRandom(int len) {
+	const char charset[] = "0123456789" "abcdefghijklmnopqrstuvwxyz" "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "+-*/=";
+	const size_t size = sizeof(charset) - 1;
+
+	auto randomChar = [&]() {
+		return charset[rand() % size];
+	};
+
+	auto resultSize = len;
+	std::string result(resultSize, 0);
+	std::generate_n(result.begin(), resultSize, randomChar);
+
+	return result;
+}
 
 int WsHeader::encode(std::string &header)
 {
@@ -105,13 +123,13 @@ int WsHeader::decode(const char *header, int length)
 	return offset;
 }
 
-WebSocketProtocol::WebSocketProtocol()
+WebSocketProtocolBase::WebSocketProtocolBase()
 {
 	rbuf_ = new DataRingBuf();
 	bIsConnect = false;
 }
 
-WebSocketProtocol::~WebSocketProtocol()
+WebSocketProtocolBase::~WebSocketProtocolBase()
 {
 	if (rbuf_)
 	{
@@ -120,11 +138,70 @@ WebSocketProtocol::~WebSocketProtocol()
 	bIsConnect = false;
 }
 
-int WebSocketProtocol::doHandShake(const char *data, int len)
+int WebSocketProtocolBase::encodeData(const char *data, int len, std::string &dest)
+{
+	WsHeader wsHeader;
+	int headerLen;
+
+	wsHeader.eof = true;
+	wsHeader.mask = false;
+	wsHeader.opcode = 1;
+	wsHeader.len = len;
+	headerLen = wsHeader.encode(dest);
+	dest.append(data, len);
+	//memcpy(dest + headerLen, data, len);
+	return headerLen + len;
+}
+
+int WebSocketProtocolBase::decodeData(const char *data, int len, std::string &dest, bool &finish)
+{
+	WsHeader wsHeader;
+	int headerLen;
+	const char *realData;
+	char byte;
+
+	headerLen = wsHeader.decode(data, len);
+	realData = data + headerLen;
+	if (wsHeader.mask)
+	{
+		for (int i = 0; i < wsHeader.len; i++)
+		{
+			byte = realData[i] ^ wsHeader.mask_key[i % 4];
+			dest.append(1, byte);
+		}
+	}
+	else
+	{
+		dest.append(realData, wsHeader.len);
+		//memcpy(dest, realData, wsHeader.len);
+	}
+	finish = wsHeader.eof;
+	return wsHeader.len;
+}
+
+void WebSocketProtocolBase::close()
+{
+	bIsConnect = false;
+	rbuf_->clear();
+}
+
+WebSocketProtocolServer::WebSocketProtocolServer() : WebSocketProtocolBase()
+{
+	
+}
+
+WebSocketProtocolServer::~WebSocketProtocolServer()
+{
+	std::cout << "delete ws protocol server" << std::endl;
+}
+
+int WebSocketProtocolServer::doHandShake(std::string &handshakedata)
 {
 	int ret;
 	std::string handshake;
 	char *p;
+	const char *data = handshakedata.data();
+	int len = handshakedata.length();
 	
 	if (strstr(data, "\r\n\r\n"))
 	{
@@ -162,7 +239,7 @@ int WebSocketProtocol::doHandShake(const char *data, int len)
 	}
 }
 
-int WebSocketProtocol::doResponse(std::string &response)
+int WebSocketProtocolServer::doResponse(std::string &responsedata)
 {
 	std::ostringstream os;
 	// 基于当前系统的当前日期/时间
@@ -177,59 +254,17 @@ int WebSocketProtocol::doResponse(std::string &response)
 	os << "Upgrade: " << upgrade << CRLF;
 	os << "Sec-WebSocket-Accept: " << accept << CRLF;
 	os << CRLF;
-	response = os.str();
+	responsedata = os.str();
 	bIsConnect = true;
 	return 0;
 }
 
-int WebSocketProtocol::encodeData(const char *data, int len, std::string &dest)
+void WebSocketProtocolServer::initParam(int method, std::string &path, std::string &host, std::string &extensions)
 {
-	WsHeader wsHeader;
-	int headerLen;
-
-	wsHeader.eof = true;
-	wsHeader.mask = false;
-	wsHeader.opcode = 1;
-	wsHeader.len = len;
-	headerLen = wsHeader.encode(dest);
-	dest.append(data, len);
-	//memcpy(dest + headerLen, data, len);
-	return headerLen + len;
+	return;
 }
 
-int WebSocketProtocol::decodeData(const char *data, int len, std::string &dest, bool &finish)
-{
-	WsHeader wsHeader;
-	int headerLen;
-	const char *realData;
-	char byte;
-	
-	headerLen = wsHeader.decode(data, len);
-	realData = data + headerLen;
-	if (wsHeader.mask)
-	{
-		for (int i = 0; i < wsHeader.len; i++)
-		{
-			byte = realData[i] ^ wsHeader.mask_key[i % 4];
-			dest.append(1, byte);
-		}
-	}
-	else
-	{
-		dest.append(realData, wsHeader.len);
-		//memcpy(dest, realData, wsHeader.len);
-	}
-	finish = wsHeader.eof;
-	return wsHeader.len;
-}
-
-void WebSocketProtocol::close()
-{
-	bIsConnect = false;
-	rbuf_->clear();
-}
-
-int WebSocketProtocol::parse_line(std::string &line)
+int WebSocketProtocolServer::parse_line(std::string &line)
 {
 	int ret = 0;
 	int i = 0;
@@ -279,7 +314,7 @@ int WebSocketProtocol::parse_line(std::string &line)
 	}
 }
 
-int WebSocketProtocol::parse_attribute(std::string &line)
+int WebSocketProtocolServer::parse_attribute(std::string &line)
 {
 	std::string attribute = "";
 	std::string value = "";
@@ -312,6 +347,156 @@ int WebSocketProtocol::parse_attribute(std::string &line)
 	else if (attribute == "Sec-WebSocket-Version")
 	{
 		version = std::move(value);
+	}
+	else if (attribute == "Upgrade")
+	{
+		upgrade = std::move(value);
+	}
+}
+
+WebSocketProtocolClient::WebSocketProtocolClient()
+{
+
+}
+
+WebSocketProtocolClient::~WebSocketProtocolClient()
+{
+
+}
+
+int WebSocketProtocolClient::doHandShake(std::string &handshakedata)
+{
+	std::ostringstream os;
+	std::string m;
+	if (method == 0)
+	{
+		m = "GET";
+	}
+	else
+	{
+		m = "POST";
+	}
+	os << m << " " << path << " " << protocolVer << CRLF;
+	os << "Host: " << host << CRLF;
+	os << "Connection: " << connection << CRLF;
+	os << "User-Agent: " << user_agent << CRLF;
+	os << "Upgrade: " << upgrade << CRLF;
+	os << "Origin: " << origin << CRLF;
+	os << "Sec-WebSocket-Version: " << version << CRLF;
+	os << "Sec-WebSocket-Key: " << key << CRLF;
+	os << "Sec-WebSocket-Extensions: " << extensions << CRLF;
+	os << CRLF;
+	handshakedata = os.str();
+	return 0;
+}
+
+int WebSocketProtocolClient::doResponse(std::string &responsedata)
+{
+	int ret;
+	std::string handshake;
+	char *p;
+	const char *data = responsedata.data();
+	int len = responsedata.length();
+
+	if (strstr(data, "\r\n\r\n"))
+	{
+		ret = rbuf_->getUsed();
+		if (ret > 0)
+		{
+			p = const_cast<char*>(handshake.c_str());
+			ret = rbuf_->readData(p, ret);
+			handshake = std::string(p, ret) + std::string(data, len);
+		}
+		else
+		{
+			handshake = std::string(data, len);
+		}
+		std::istringstream is(handshake);
+		std::string line;
+		while (getline(is, line))
+		{
+			parse_line(line);
+		}
+		if (upgrade != "websocket" || code != "101" || accept.empty())
+		{
+			return -1;
+		}
+		bIsConnect = true;
+		return 0;
+	}
+	else
+	{
+		ret = rbuf_->writeData(data, len);
+		return 1;
+	}
+}
+
+void WebSocketProtocolClient::initParam(int method, std::string &path, std::string &host, std::string &extensions)
+{
+	this->method = method;
+	this->path = path;
+	this->protocolVer = "HTTP/1.1";
+	this->host = host;
+	this->connection = "Upgrade";
+	this->user_agent = "Linux Client";
+	this->upgrade = "websocket";
+	this->origin = "libuv_ws (HeJingsheng)";
+	this->version = "13";
+	this->extensions = extensions;
+	this->key = generateRandom(24);
+	
+}
+
+int WebSocketProtocolClient::parse_line(std::string &line)
+{
+	int ret = 0;
+	int i = 0;
+	if (line.find(':') == std::string::npos)
+	{
+		// HTTP/1.1 101 Switching Protocols
+		std::istringstream is(line);
+		std::string tmp;
+		while (is >> tmp)
+		{
+			switch (i)
+			{
+			case 0:
+				break;
+			case 1:
+				code = tmp;
+				break;
+			case 2:
+				break;
+			}
+			i++;
+		}
+	}
+	else
+	{
+		//Connection:Upgrade
+		//Sec - WebSocket - Accept : puVOuWb7rel6z2AVZBKnfw ==
+		//Upgrade : websocket
+		parse_attribute(line);
+	}
+}
+
+int WebSocketProtocolClient::parse_attribute(std::string &line)
+{
+	std::string attribute = "";
+	std::string value = "";
+	size_t pos = line.find_first_of(":");
+	if (pos != std::string::npos) {
+		attribute = line.substr(0, pos);
+		value = line.substr(pos + 2);// jump the space ascii
+		value = value.substr(0, value.length() - 1);
+	}
+	if (attribute == "Connection")
+	{
+		connection = std::move(value);
+	}
+	else if (attribute == "Sec-WebSocket-Accept")
+	{
+		accept = std::move(value);
 	}
 	else if (attribute == "Upgrade")
 	{

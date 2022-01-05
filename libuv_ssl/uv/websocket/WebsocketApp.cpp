@@ -13,7 +13,7 @@ namespace uv
 
 		WebSocketServer::~WebSocketServer()
 		{
-			std::unordered_map<std::string, WebSocketProtocol*>::iterator it = connMap_.begin();
+			std::unordered_map<std::string, WebSocketProtocolBase*>::iterator it = connMap_.begin();
 			for (; it != connMap_.end(); it++)
 			{
 				it->second->close();
@@ -24,13 +24,14 @@ namespace uv
 		void WebSocketServer::onMesage(TcpConnectionPtr conn, const char* data, ssize_t size)
 		{
 			std::string connName = conn->Name();
-			WebSocketProtocol *wsProto;
+			WebSocketProtocolBase *wsProto;
 			int ret;
 			if (connMap_.find(connName) == connMap_.end())
 			{
 				// 第一次连接 或者 没有连接成功
-				wsProto = new WebSocketProtocol();
-				ret = wsProto->doHandShake(data, size);
+				wsProto = new WebSocketProtocolServer();
+				std::string handshake(data, size);
+				ret = wsProto->doHandShake(handshake);
 				if (ret == 0)
 				{
 					std::string response;
@@ -77,7 +78,7 @@ namespace uv
 		{
 			if (connMap_.find(connName) != connMap_.end())
 			{
-				WebSocketProtocol *wsProto = connMap_[connName];
+				WebSocketProtocolBase *wsProto = connMap_[connName];
 				if (wsProto != nullptr)
 				{
 					wsProto->close();
@@ -89,12 +90,16 @@ namespace uv
 
 		WebSocketClient::WebSocketClient(EventLoop *loop) : client_(new uv::TcpClient(loop, false))
 		{
-			wsProtocol_ = new WebSocketProtocol();
+			wsProtocol_ = new WebSocketProtocolClient();
 		}
 
 		WebSocketClient::~WebSocketClient()
 		{
-
+			if (wsProtocol_)
+			{
+				delete wsProtocol_;
+			}
+			wsProtocol_ = nullptr;
 		}
 
 		void WebSocketClient::connect(SocketAddr& addr)
@@ -108,7 +113,13 @@ namespace uv
 		{
 			if (status == TcpClient::ConnectStatus::OnConnectSuccess)
 			{
-
+				std::string handshake;
+				std::string path = "/";
+				std::string host = "121.40.165.18:8800"; 
+				std::string extensions = "ws base libuv";
+				wsProtocol_->initParam(0, path, host, extensions);
+				wsProtocol_->doHandShake(handshake);
+				client_->write(handshake.data(), handshake.length(), nullptr);
 			}
 			else
 			{
@@ -118,7 +129,31 @@ namespace uv
 
 		void WebSocketClient::onMessage(const char* data, ssize_t size)
 		{
-
+			if (wsProtocol_->isConnected())
+			{
+				std::string dest = "";
+				bool finish;
+				int len = wsProtocol_->decodeData(data, size, dest, finish);
+				if (len == 0)
+				{
+					len = wsProtocol_->encodeData("EOF", strlen("EOF"), dest);
+					//sendData(data.c_str(), len);
+					client_->write(dest.data(), dest.length(), [this](WriteInfo &winfo) {
+						//closeWs(conn->Name());
+						wsProtocol_->close();
+						client_->close(nullptr);
+					});
+				}
+				else
+				{
+					std::cout << "recv data len:" << dest.length() << std::endl;
+				}
+			}
+			else
+			{
+				std::string response(data, size);
+				wsProtocol_->doResponse(response);
+			}
 		}
 	};
 }
