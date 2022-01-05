@@ -5,6 +5,7 @@
 #include "uv/include/Timer.hpp"
 #include "uv/include/UdpListener.hpp"
 #include "app/stun.h"
+#include "uv/include/websocket/WebsocketServer.hpp"
 
 #if 0
 #include <stdio.h>
@@ -282,19 +283,23 @@ int main(int argc, char *argv[])
 	std::cout << "Libuv Base SSL" << std::endl;
 	std::string name = "test";
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
-	uv::Udp udpSocket(loop);
-	uv_app::STUNClient stunclient(loop, name);
-	//uv_app::STUNServer stunserver;
-	uv::SocketAddr addr("0.0.0.0", 5000);
-	udpSocket.bindAndRead(addr);
-	udpSocket.setMessageCallback([&stunclient](uv::SocketAddr &addr, const char* data, unsigned int len) {
 
-		global_addr = new uv::SocketAddr(addr.Addr());
-		stunclient.onRecvStunData(data, len);
-		//stunserver.responseStun(addr);
-	});
-	stunclient.init(new testClass(&udpSocket));
-	stunclient.requestStun();
+	uv::websocket::WebSocketServer wsServer(loop);
+	uv::SocketAddr addr("0.0.0.0", 5000);
+	wsServer.bindAndListen(addr);
+	//uv::Udp udpSocket(loop);
+	//uv_app::STUNClient stunclient(loop, name);
+	////uv_app::STUNServer stunserver;
+	//uv::SocketAddr addr("0.0.0.0", 5000);
+	//udpSocket.bindAndRead(addr);
+	//udpSocket.setMessageCallback([&stunclient](uv::SocketAddr &addr, const char* data, unsigned int len) {
+
+	//	global_addr = new uv::SocketAddr(addr.Addr());
+	//	stunclient.onRecvStunData(data, len);
+	//	//stunserver.responseStun(addr);
+	//});
+	//stunclient.init(new testClass(&udpSocket));
+	//stunclient.requestStun();
 
 
 	loop->run();
