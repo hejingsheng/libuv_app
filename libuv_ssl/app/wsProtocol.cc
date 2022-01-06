@@ -125,16 +125,16 @@ int WsHeader::decode(const char *header, int length)
 
 WebSocketProtocolBase::WebSocketProtocolBase()
 {
-	rbuf_ = new DataRingBuf();
+	//rbuf_ = new DataRingBuf();
 	bIsConnect = false;
 }
 
 WebSocketProtocolBase::~WebSocketProtocolBase()
 {
-	if (rbuf_)
-	{
-		delete rbuf_;
-	}
+	//if (rbuf_)
+	//{
+	//	delete rbuf_;
+	//}
 	bIsConnect = false;
 }
 
@@ -182,7 +182,7 @@ int WebSocketProtocolBase::decodeData(const char *data, int len, std::string &de
 void WebSocketProtocolBase::close()
 {
 	bIsConnect = false;
-	rbuf_->clear();
+	//rbuf_->clear();
 }
 
 WebSocketProtocolServer::WebSocketProtocolServer() : WebSocketProtocolBase()
@@ -197,6 +197,7 @@ WebSocketProtocolServer::~WebSocketProtocolServer()
 
 int WebSocketProtocolServer::doHandShake(std::string &handshakedata)
 {
+#if 0
 	int ret;
 	std::string handshake;
 	char *p;
@@ -237,6 +238,53 @@ int WebSocketProtocolServer::doHandShake(std::string &handshakedata)
 		ret = rbuf_->writeData(data, len);
 		return 1;
 	}
+#else
+	char p[32] = { 0 };
+	if (handshakedata.find("\r\n\r\n") != std::string::npos)
+	{
+		std::istringstream is(handshakedata);
+		std::string line;
+		while (getline(is, line))
+		{
+			parse_line(line);
+		}
+		if (upgrade != "websocket" || connection != "Upgrade" || version != "13" || key.empty())
+		{
+			return -1;
+		}
+		std::string tmp = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+		shacalc(tmp.data(), p);
+		accept.append(p);
+		return 0;
+	}
+	else
+	{
+		return -1;
+	}
+	//char p[100] = { 0 };
+	//if (handshakedata.find("\r\n\r\n") != std::string::npos)
+	//{
+	//	std::istringstream is(handshakedata);
+	//	std::string line;
+	//	while (getline(is, line))
+	//	{
+	//		parse_line(line);
+	//	}
+	//	if (upgrade != "websocket" || connection != "Upgrade" || version != "13" || key.empty())
+	//	{
+	//		return -1;
+	//	}
+	//	//p = const_cast<char*>(accept.c_str());
+	//	std::string tmp = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+	//	shacalc(tmp.data(), p);
+	//	accept = p;
+	//	return 0;
+	//}
+	//else
+	//{
+	//	return -1;
+	//}
+#endif
 }
 
 int WebSocketProtocolServer::doResponse(std::string &responsedata)
@@ -392,6 +440,7 @@ int WebSocketProtocolClient::doHandShake(std::string &handshakedata)
 
 int WebSocketProtocolClient::doResponse(std::string &responsedata)
 {
+#if 0
 	int ret;
 	std::string handshake;
 	char *p;
@@ -429,6 +478,27 @@ int WebSocketProtocolClient::doResponse(std::string &responsedata)
 		ret = rbuf_->writeData(data, len);
 		return 1;
 	}
+#else
+	if (responsedata.find("\r\n\r\n") != std::string::npos)
+	{
+		std::istringstream is(responsedata);
+		std::string line;
+		while (getline(is, line))
+		{
+			parse_line(line);
+		}
+		if (upgrade != "websocket" || code != "101" || accept.empty())
+		{
+			return -1;
+		}
+		bIsConnect = true;
+		return 0;
+	}
+	else
+	{
+		return -1;
+	}
+#endif
 }
 
 void WebSocketProtocolClient::initParam(int method, std::string &path, std::string &host, std::string &extensions)

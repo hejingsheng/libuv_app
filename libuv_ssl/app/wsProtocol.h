@@ -42,7 +42,7 @@ public:
 	virtual void initParam(int method, std::string &path, std::string &host, std::string &extensions) = 0;
 
 protected:
-	DataRingBuf *rbuf_;
+	//DataRingBuf *rbuf_;
 
 	int method;   //0 GET  1 POST
 	std::string path;

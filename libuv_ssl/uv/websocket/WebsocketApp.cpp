@@ -42,6 +42,8 @@ namespace uv
 				else
 				{
 					// wait other data
+					delete wsProto;
+					conn->close(nullptr);
 				}
 			}
 			else
@@ -152,7 +154,11 @@ namespace uv
 			else
 			{
 				std::string response(data, size);
-				wsProtocol_->doResponse(response);
+				int ret = wsProtocol_->doResponse(response);
+				if (ret < 0)
+				{
+					client_->close(nullptr);
+				}
 			}
 		}
 	};
