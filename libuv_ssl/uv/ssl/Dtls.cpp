@@ -60,6 +60,7 @@ namespace Dtls
 		SSL_load_error_strings();
 #else
 #endif
+		ssl_certificate.init();
 	}
 
 	DtlsBase::~DtlsBase()
@@ -89,6 +90,22 @@ namespace Dtls
 				return -1;
 			}
 			SSL_CTX_set_cipher_list(ctx_, "ALL");
+			//加载证书和私钥
+			if (0 == SSL_CTX_use_certificate(ctx_, ssl_certificate.get_ssl_cert()))
+			{
+				ERR_print_errors_fp(stderr);
+				return -1;
+			}
+			if (0 == SSL_CTX_use_PrivateKey(ctx_, ssl_certificate.get_ssl_pkey()))
+			{
+				ERR_print_errors_fp(stderr);
+				return -1;
+			}
+			if (!SSL_CTX_check_private_key(ctx_))
+			{
+				uv::LogWriter::Instance()->error("Private key does not match the certificate public key");
+				return -1;
+			}
 		}
 		else if (role == DtlsRoleServer)
 		{

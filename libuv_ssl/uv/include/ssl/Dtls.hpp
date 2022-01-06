@@ -13,6 +13,7 @@ extern "C"
 }
 #include "uv/include/Udp.hpp"
 #include "uv/include/Timer.hpp"
+#include "uv/include/ssl/SSLCertificate.hpp"
 
 namespace Dtls
 {
@@ -65,6 +66,7 @@ namespace Dtls
 		BIO *wbio_;
 
 		IDtlsCallback *dtlsCallback_;
+		SSLCertificate ssl_certificate;
 	};
 
 	class DtlsServer : public DtlsBase
