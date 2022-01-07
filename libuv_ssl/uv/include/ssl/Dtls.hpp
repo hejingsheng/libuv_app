@@ -56,6 +56,9 @@ namespace Dtls
 		virtual void writeData(const char *buf, unsigned int size);
 		virtual void alertCallback(std::string type, std::string desc);
 
+	public:
+		void getRemoteFingerprint(std::string &fingerprint);
+
 	protected:
 		void send_bio_data();
 

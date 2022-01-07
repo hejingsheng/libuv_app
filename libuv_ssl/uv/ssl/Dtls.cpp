@@ -193,6 +193,19 @@ namespace Dtls
 		}
 	}
 
+	void DtlsBase::getRemoteFingerprint(std::string &fingerprint)
+	{
+		X509 *rcert;
+		int ret;
+		rcert = SSL_get_peer_certificate(ssl_);
+
+		if (rcert != nullptr)
+		{
+			ret = X509_cmp_current_time(X509_get_notAfter(rcert));
+		}
+
+	}
+
 	void DtlsBase::send_bio_data()
 	{
 		char *data = NULL;
@@ -430,6 +443,8 @@ namespace Dtls
 				if (dtlsCallback_)
 				{
 					dtlsCallback_->onDtlsRecvData(buf, ret);
+					std::string f;
+					getRemoteFingerprint(f);
 				}
 			}
 		}
