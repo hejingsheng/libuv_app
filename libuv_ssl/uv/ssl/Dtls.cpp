@@ -23,7 +23,7 @@ namespace Dtls
 			return;
 		}
 		std::string alert_type = SSL_alert_type_string_long(ret);
-		std::string alert_desc = SSL_alert_desc_string(ret);
+		std::string alert_desc = SSL_alert_desc_string_long(ret);
 		uv::LogWriter::Instance()->error("dtls alert");
 		dtls->alertCallback(alert_type, alert_desc);
 		return;
@@ -193,17 +193,37 @@ namespace Dtls
 		}
 	}
 
-	void DtlsBase::getRemoteFingerprint(std::string &fingerprint)
+	void DtlsBase::checkRemoteCertificate(std::string &fingerprint)
 	{
-		X509 *rcert;
+		X509 *cert;
+		unsigned int rsize;
+		unsigned char rfingerprint[EVP_MAX_MD_SIZE] = { 0 };
+		char remote_fingerprint[160] = { 0 };
+		char *rfp = (char *)&remote_fingerprint;
 		int ret;
-		rcert = SSL_get_peer_certificate(ssl_);
 
-		if (rcert != nullptr)
+		if (ssl_ != nullptr)
 		{
-			ret = X509_cmp_current_time(X509_get_notAfter(rcert));
+			cert = SSL_get_peer_certificate(ssl_);
+			if (cert != nullptr)
+			{
+				ret = X509_cmp_current_time(X509_get_notAfter(cert));
+				if (ret < 0)
+				{
+					alertCallback("warning", "certificate expired");
+				}
+				X509_digest(cert, EVP_sha256(), (unsigned char *)rfingerprint, &rsize);
+				X509_free(cert);
+				cert = NULL;
+				for (unsigned int i = 0; i < rsize; i++)
+				{
+					snprintf(rfp, 4, "%.2X:", rfingerprint[i]);
+					rfp += 3;
+				}
+				*(rfp - 1) = 0;
+				fingerprint.assign(remote_fingerprint, strlen(remote_fingerprint));
+			}
 		}
-
 	}
 
 	void DtlsBase::send_bio_data()
@@ -444,7 +464,8 @@ namespace Dtls
 				{
 					dtlsCallback_->onDtlsRecvData(buf, ret);
 					std::string f;
-					getRemoteFingerprint(f);
+					//getRemoteFingerprint(f);
+					checkRemoteCertificate(f);
 				}
 			}
 		}

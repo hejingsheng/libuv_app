@@ -243,13 +243,14 @@ public:
 
 	void onDtlsSendData(const char *data, unsigned int len)
 	{
-		uv::SocketAddr addr("192.168.0.200", 8443);
-		udpSocket->send(addr, data, len);
-		//udpSocket->send(*global_addr, data, len);
+		uv::SocketAddr addr("192.168.1.4", 8443);
+		//udpSocket->send(addr, data, len);
+		udpSocket->send(*global_addr, data, len);
 	}
 
 	void onDtlsAlert(std::string type, std::string desc)
 	{
+
 	}
 
 	void onUdpMsgRecv(uv::SocketAddr &addr, const char *data, unsigned int len)
@@ -316,18 +317,29 @@ int main(int argc, char *argv[])
 
 	//loop->run();
 
-
 	uv::Udp udpSocket(loop);
-	uv::SocketAddr addr("192.168.0.200", 5000);
+	uv::SocketAddr addr("192.168.1.4", 8443);
 	udpSocket.bindAndRead(addr);
-	Dtls::DtlsClient dtlsClient(loop, new testClass(&udpSocket));
-	dtlsClient.init("","",Dtls::DtlsRole::DtlsRoleClient);
-	udpSocket.setMessageCallback([&dtlsClient](uv::SocketAddr& from, const char* data, unsigned size) {
+	Dtls::DtlsServer dtlsServer(new testClass(&udpSocket));
+	dtlsServer.init("server1.cert", "server1.key", Dtls::DtlsRole::DtlsRoleServer);
+	udpSocket.setMessageCallback([&dtlsServer](uv::SocketAddr& from, const char* data, unsigned size) {
 		global_addr = new uv::SocketAddr(from.Addr());
-		dtlsClient.onMessage(data, size);
-		//dtlsClient.writeData(data, size);
+		dtlsServer.onMessage(data, size);
+		//dtlsServer.writeData(data, size);
 	});
-	dtlsClient.startHandShake();
+	//dtlsClient.startHandShake();
+
+	//uv::Udp udpSocket(loop);
+	//uv::SocketAddr addr("192.168.1.4", 5000);
+	//udpSocket.bindAndRead(addr);
+	//Dtls::DtlsClient dtlsClient(loop, new testClass(&udpSocket));
+	//dtlsClient.init("","",Dtls::DtlsRole::DtlsRoleClient);
+	//udpSocket.setMessageCallback([&dtlsClient](uv::SocketAddr& from, const char* data, unsigned size) {
+	//	global_addr = new uv::SocketAddr(from.Addr());
+	//	dtlsClient.onMessage(data, size);
+	//	//dtlsClient.writeData(data, size);
+	//});
+	//dtlsClient.startHandShake();
 	//loop->run();
 
 	//uv::SocketAddr addr("192.168.0.29", 6000);
