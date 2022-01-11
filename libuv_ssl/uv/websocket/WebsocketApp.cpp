@@ -1,5 +1,6 @@
 #include "../include/websocket/WebsocketApp.hpp"
 #include <iostream>
+#include "string.h"
 
 namespace uv
 {

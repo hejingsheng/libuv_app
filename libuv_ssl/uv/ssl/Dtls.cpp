@@ -5,6 +5,7 @@ Date: 2021/11/26
 */
 #include "uv/include/ssl/Dtls.hpp"
 #include "uv/include/LogWriter.hpp"
+#include "string.h"
 
 namespace Dtls
 {

@@ -1,4 +1,6 @@
 #include "uv/include/ssl/SSLCertificate.hpp"
+#include <sys/time.h>
+#include "string.h"
 
 static int getRandom()
 {

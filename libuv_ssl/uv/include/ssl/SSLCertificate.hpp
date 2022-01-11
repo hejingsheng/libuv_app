@@ -5,6 +5,7 @@ extern "C"
 {
 #include "openssl/ssl.h"
 #include "openssl/err.h"
+#include "openssl/x509.h"
 }
 #include <string>
 
