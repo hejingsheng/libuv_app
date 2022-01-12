@@ -115,10 +115,18 @@ int TcpConnection::init(std::string cert, std::string key, TLSRole role)
 int TcpConnection::initTlsServer(std::string cert, std::string key)
 {
 	int ret;
+	bool usetls1_3 = true;
 #if (OPENSSL_VERSION_NUMBER < 0x10002000L) // v1.0.2
 	ctx_ = SSL_CTX_new(TLS_method());
 #else
-	ctx_ = SSL_CTX_new(TLSv1_2_method());
+	if (usetls1_3)
+	{
+		ctx_ = SSL_CTX_new(SSLv23_method());
+	}
+	else
+	{
+		ctx_ = SSL_CTX_new(TLSv1_2_method());
+	}
 #endif
 	if (ctx_ == NULL)
 	{
@@ -183,7 +191,19 @@ ERROR:
 int TcpConnection::initTlsClient()
 {
 	int ret = 0;
-	ctx_ = SSL_CTX_new(TLSv1_2_client_method());
+	bool usetls1_3 = true;
+#if (OPENSSL_VERSION_NUMBER < 0x10002000L) // v1.0.2
+	ctx_ = SSL_CTX_new(TLS_method());
+#else
+	if (usetls1_3)
+	{
+		ctx_ = SSL_CTX_new(SSLv23_client_method());
+	}
+	else
+	{
+		ctx_ = SSL_CTX_new(TLSv1_2_client_method());
+	}
+#endif
 	if (ctx_ == NULL)
 	{
 		uv::LogWriter::Instance()->error("create ssl ctx fail no memery");

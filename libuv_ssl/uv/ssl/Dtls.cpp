@@ -84,13 +84,55 @@ namespace Dtls
 		int ret = 0;
 		if (role == DtlsRoleClient)
 		{
+#if OPENSSL_VERSION_NUMBER < 0x10002000L //v1.0.2
+			ctx_ = SSL_CTX_new(DTLSv1_method());
+#else
 			ctx_ = SSL_CTX_new(DTLS_client_method());
-			if (ctx_ == NULL)
-			{
-				uv::LogWriter::Instance()->error("create ssl ctx fail no memery");
-				return -1;
-			}
-			SSL_CTX_set_cipher_list(ctx_, "ALL");
+#endif
+		}
+		else if (role == DtlsRoleServer)
+		{
+#if OPENSSL_VERSION_NUMBER < 0x10002000L //v1.0.2
+			ctx_ = SSL_CTX_new(DTLSv1_method());
+#else
+			ctx_ = SSL_CTX_new(DTLS_server_method());
+#endif
+		}
+		else
+		{
+			return -1;
+		}
+		if (ctx_ == NULL)
+		{
+			uv::LogWriter::Instance()->error("create ssl ctx fail no memery");
+			return -1;
+		}
+		if (ssl_certificate.isecdsa) // By ECDSA, https://stackoverflow.com/a/6006898
+		{ 
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L // v1.0.2
+			// For ECDSA, we could set the curves list.
+			// @see https://www.openssl.org/docs/man1.0.2/man3/SSL_CTX_set1_curves_list.html
+			SSL_CTX_set1_curves_list(ctx_, "P-521:P-384:P-256");
+#endif
+
+			// For openssl <1.1, we must set the ECDH manually.
+			// @see https://stackoverrun.com/cn/q/10791887
+#if OPENSSL_VERSION_NUMBER < 0x10100000L // v1.1.x
+#if OPENSSL_VERSION_NUMBER < 0x10002000L // v1.0.2
+			SSL_CTX_set_tmp_ecdh(ctx_, ssl_certificate.get_ssl_eckey());
+#else
+			SSL_CTX_set_ecdh_auto(ctx_, 1);
+#endif
+#endif
+		}
+		ret = SSL_CTX_set_cipher_list(ctx_, "ALL");
+		if (ret != 1)
+		{
+			uv::LogWriter::Instance()->error("SSL_CTX_set_cipher_list fail");
+			return -1;
+		}
+		if (cert.empty() || key.empty())
+		{
 			//加载证书和私钥
 			if (0 == SSL_CTX_use_certificate(ctx_, ssl_certificate.get_ssl_cert()))
 			{
@@ -102,26 +144,9 @@ namespace Dtls
 				ERR_print_errors_fp(stderr);
 				return -1;
 			}
-			if (!SSL_CTX_check_private_key(ctx_))
-			{
-				uv::LogWriter::Instance()->error("Private key does not match the certificate public key");
-				return -1;
-			}
 		}
-		else if (role == DtlsRoleServer)
+		else
 		{
-			ctx_ = SSL_CTX_new(DTLS_server_method());
-			if (ctx_ == NULL)
-			{
-				uv::LogWriter::Instance()->error("create ssl ctx fail no memery");
-				return -1;
-			}
-			ret = SSL_CTX_set_cipher_list(ctx_, "ALL");
-			if (ret != 1)
-			{
-				uv::LogWriter::Instance()->error("SSL_CTX_set_cipher_list fail");
-				return -1;
-			}
 			//加载证书和私钥
 			if (0 == SSL_CTX_use_certificate_file(ctx_, cert.c_str(), SSL_FILETYPE_PEM))
 			{
@@ -133,14 +158,10 @@ namespace Dtls
 				ERR_print_errors_fp(stderr);
 				return -1;
 			}
-			if (!SSL_CTX_check_private_key(ctx_))
-			{
-				uv::LogWriter::Instance()->error("Private key does not match the certificate public key");
-				return -1;
-			}
 		}
-		else
+		if (!SSL_CTX_check_private_key(ctx_))
 		{
+			uv::LogWriter::Instance()->error("Private key does not match the certificate public key");
 			return -1;
 		}
 		SSL_CTX_set_verify(ctx_, SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE, uv_verify_callback);

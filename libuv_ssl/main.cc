@@ -1,5 +1,5 @@
 #include <iostream>
-
+#include "string.h"
 #include "uv/include/uv11.hpp"
 #include "uv/include/ssl/Dtls.hpp"
 #include "uv/include/Timer.hpp"
@@ -243,9 +243,9 @@ public:
 
 	void onDtlsSendData(const char *data, unsigned int len)
 	{
-		uv::SocketAddr addr("192.168.1.4", 8443);
-		//udpSocket->send(addr, data, len);
-		udpSocket->send(*global_addr, data, len);
+		uv::SocketAddr addr("192.168.0.200", 8443);
+		udpSocket->send(addr, data, len);
+		//udpSocket->send(*global_addr, data, len);
 	}
 
 	void onDtlsAlert(std::string type, std::string desc)
@@ -270,7 +270,7 @@ public:
 	
 	void onStunSendData(const char *data, int len)
 	{
-		uv::SocketAddr addr("47.88.86.177", 3478);
+		uv::SocketAddr addr("8.135.38.10", 3478);
 		//uv::SocketAddr addr("192.168.0.200", 3478);
 		//udpSocket->send(*global_addr, data, len);
 		udpSocket->send(addr, data, len);
@@ -279,145 +279,114 @@ public:
 private:
 	uv::Udp *udpSocket;
 };
+#define SOFTWARE_VERSION  "0.0.1"
+
+#define TEST_TLS_SERVER
 
 int main(int argc, char *argv[])
 {
-	std::cout << "Libuv Base SSL" << std::endl;
+	std::cout << "Libuv Base APP" << std::endl;
+	std::cout << "Version:" << SOFTWARE_VERSION << std::endl;
 	std::string name = "test";
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
 
-	//uv::websocket::WebSocketClient wsClient(loop);
-	//uv::SocketAddr addr("121.40.165.18", 8800);
-	//wsClient.connect(addr);
+#ifdef TEST_WEBSOCKET_CLIENT
+	uv::websocket::WebSocketClient wsClient(loop);
+	uv::SocketAddr addr("121.40.165.18", 8800);
+	wsClient.connect(addr);
+#endif
 
-	//uv::websocket::WebSocketServer wsServer(loop);
-	//uv::SocketAddr addr("0.0.0.0", 5000);
-	//wsServer.bindAndListen(addr);
-	//uv::Udp udpSocket(loop);
-	//uv_app::STUNClient stunclient(loop, name);
-	////uv_app::STUNServer stunserver;
-	//uv::SocketAddr addr("0.0.0.0", 5000);
-	//udpSocket.bindAndRead(addr);
-	//udpSocket.setMessageCallback([&stunclient](uv::SocketAddr &addr, const char* data, unsigned int len) {
+#ifdef TEST_WEBSOCKET_SERVER
+	uv::websocket::WebSocketServer wsServer(loop);
+	uv::SocketAddr addr("0.0.0.0", 5000);
+	wsServer.bindAndListen(addr);
+#endif
 
-	//	global_addr = new uv::SocketAddr(addr.Addr());
-	//	stunclient.onRecvStunData(data, len);
-	//	//stunserver.responseStun(addr);
-	//});
-	//stunclient.init(new testClass(&udpSocket));
-	//stunclient.requestStun();
-
-
-	//loop->run();
-
-
-	//udpListen::UdpListener udplistener(loop, new testClass(nullptr));
-	//udplistener.init(8000);
-	//udplistener.startListen();
-
-	//loop->run();
-
+#ifdef TEST_STUN_SERVER
 	uv::Udp udpSocket(loop);
-	uv::SocketAddr addr("192.168.1.4", 8443);
+	uv_app::STUNServer stunserver;
+	uv::SocketAddr addr("0.0.0.0", 5000);
+	udpSocket.bindAndRead(addr);
+	udpSocket.setMessageCallback([&stunserver](uv::SocketAddr &addr, const char* data, unsigned int len) {
+		stunserver.responseStun(addr);
+	});
+#endif
+
+#ifdef TEST_STUN_CLIENT
+	uv::Udp udpSocket(loop);
+	uv_app::STUNClient stunclient(loop, name);
+	uv::SocketAddr addr("0.0.0.0", 5000);
+	udpSocket.bindAndRead(addr);
+	udpSocket.setMessageCallback([&stunclient](uv::SocketAddr &addr, const char* data, unsigned int len) {
+		global_addr = new uv::SocketAddr(addr.Addr());
+		stunclient.onRecvStunData(data, len);
+	});
+	stunclient.init(new testClass(&udpSocket));
+	stunclient.requestStun();
+#endif
+
+#ifdef TEST_DTLS_SERVER
+	uv::Udp udpSocket(loop);
+	uv::SocketAddr addr("192.168.0.200", 8443);
 	udpSocket.bindAndRead(addr);
 	Dtls::DtlsServer dtlsServer(new testClass(&udpSocket));
 	dtlsServer.init("server1.cert", "server1.key", Dtls::DtlsRole::DtlsRoleServer);
 	udpSocket.setMessageCallback([&dtlsServer](uv::SocketAddr& from, const char* data, unsigned size) {
 		global_addr = new uv::SocketAddr(from.Addr());
 		dtlsServer.onMessage(data, size);
-		//dtlsServer.writeData(data, size);
 	});
-	//dtlsClient.startHandShake();
+#endif
 
-	//uv::Udp udpSocket(loop);
-	//uv::SocketAddr addr("192.168.1.4", 5000);
-	//udpSocket.bindAndRead(addr);
-	//Dtls::DtlsClient dtlsClient(loop, new testClass(&udpSocket));
-	//dtlsClient.init("","",Dtls::DtlsRole::DtlsRoleClient);
-	//udpSocket.setMessageCallback([&dtlsClient](uv::SocketAddr& from, const char* data, unsigned size) {
-	//	global_addr = new uv::SocketAddr(from.Addr());
-	//	dtlsClient.onMessage(data, size);
-	//	//dtlsClient.writeData(data, size);
-	//});
-	//dtlsClient.startHandShake();
-	//loop->run();
+#ifdef TEST_DTLS_CLIENT
+	uv::Udp udpSocket(loop);
+	uv::SocketAddr addr("192.168.0.200", 5000);
+	udpSocket.bindAndRead(addr);
+	Dtls::DtlsClient dtlsClient(loop, new testClass(&udpSocket));
+	dtlsClient.init("","",Dtls::DtlsRole::DtlsRoleClient);
+	udpSocket.setMessageCallback([&dtlsClient](uv::SocketAddr& from, const char* data, unsigned size) {
+		global_addr = new uv::SocketAddr(from.Addr());
+		dtlsClient.onMessage(data, size);
+	});
+	dtlsClient.startHandShake();
+#endif
 
-	//uv::SocketAddr addr("192.168.0.29", 6000);
-	//uv::TcpClient client(loop, false);
+#ifdef TEST_TLS_CLIENT
+	uv::SocketAddr addr("192.168.0.200", 8443);
+	uv::TcpClient client(loop, true);
+	client.setConnectStatusCallback([](uv::TcpClient::ConnectStatus status) {
+		std::cout << "connect status:" << status << std::endl;
+	});
+	client.setMessageCallback([&client](const char* data, ssize_t size) {
+		char data1[100] = { 0 };
+		memcpy(data1, data, size);
+		std::cout << "recv data:" << data1 << std::endl;
+		client.writeTls(data1, size, nullptr);
+	});
+	client.connect(addr);
+#endif
 
-	//client.setConnectStatusCallback([](uv::TcpClient::ConnectStatus status) {
-	//	std::cout << "connect status:" << status << std::endl;
-	//});
-	//client.setMessageCallback([&client](const char* data, ssize_t size) {
-	//	char data1[100] = { 0 };
-	//	memcpy(data1, data, size);
-	//	std::cout << "recv data:" << data1 << std::endl;
-	//	//client.writeTls(data1, size, nullptr);
-	//});
-
-	//client.connect(addr);
-	//loop->run();
-
-	//uv::TcpServer server(loop, true);
-	//server.init("server1.cert", "server1.key");
-	//server.setMessageCallback([](uv::TcpConnectionPtr ptr, const char* data, ssize_t size)
-	//{
-	//	ptr->writeTls(data, size, nullptr);
-	//	char data1[100] = { 0 };
-	//	memcpy(data1, data, size);
-	//	std::cout << "recv:" << data1 << " from name:" << ptr->Name() << std::endl;
-	//});
-	//server.setNewConnectCallback([](std::weak_ptr<uv::TcpConnection> ptr) {
-	//	std::cout << "connect success" << ptr.lock()->Name() << std::endl;
-	//	//ptr.lock()->writeTls("connect success\n", strlen("connect success\n"), nullptr);
-	//});
-	//server.setConnectCloseCallback([](std::weak_ptr<uv::TcpConnection> ptr) {
-	//	std::cout << "connect close" << ptr.lock()->Name() << std::endl;
-	//});
+#ifdef TEST_TLS_SERVER
+	uv::TcpServer server(loop, true);
+	server.init("server1.cert", "server1.key");
+	server.setMessageCallback([](uv::TcpConnectionPtr ptr, const char* data, ssize_t size)
+	{
+		ptr->writeTls(data, size, nullptr);
+		char data1[100] = { 0 };
+		memcpy(data1, data, size);
+		std::cout << "recv:" << data1 << " from name:" << ptr->Name() << std::endl;
+	});
+	server.setNewConnectCallback([](std::weak_ptr<uv::TcpConnection> ptr) {
+		std::cout << "connect success" << ptr.lock()->Name() << std::endl;
+		//ptr.lock()->writeTls("connect success\n", strlen("connect success\n"), nullptr);
+	});
+	server.setConnectCloseCallback([](std::weak_ptr<uv::TcpConnection> ptr) {
+		std::cout << "connect close" << ptr.lock()->Name() << std::endl;
+	});
 	//////server.setTimeout(60); //heartbeat timeout.
 
-	//uv::SocketAddr addr("0.0.0.0", 8443, uv::SocketAddr::Ipv4);
-	//server.bindAndListen(addr);
-	//loop->run();
-
-	//uv::Udp udpSocket(loop);
-	//uv::SocketAddr addr("192.168.0.200", 8443);
-	//Dtls::DtlsClient client(loop, new testClass(&udpSocket));
-	//client.setDtlsHandShakeDone([](void) {
-	//	std::cout << "Dtls Connect success" << std::endl;
-	//});
-	//client.setMessageCallback([&client](uv::SocketAddr &addr, const char *buf, unsigned int size) {
-	//	char data[100] = { 0 };
-	//	memcpy(data, buf, size);
-	//	std::cout << "Recv data:" << data << std::endl;
-	//	client.write(data, size);
-	//});
-	//client.init("", "");
-
-	//loop->run();
-
-	//uv::SocketAddr addr3("127.0.0.1", 10003);
-	//uv::Udp udpReceive(loop);
-	//udpReceive.setMessageCallback(
-	//	[&udpReceive](uv::SocketAddr& from, const char* data, unsigned size)
-	//{
-	//	std::string msg(data, size);
-	//	std::cout << "udp receive message from " << from.toStr() << " :" << msg << std::endl;
-	//	udpReceive.send(from, data, size);
-	//});
-	//udpReceive.bindAndRead(addr3);
-
-	//uv::SocketAddr addr4("127.0.0.1", 10004);
-	//uv::Udp udpSend(loop);
-	//udpSend.setMessageCallback(
-	//	[](uv::SocketAddr& from, const char* data, unsigned size)
-	//{
-	//	std::string msg(data, size);
-	//	std::cout << "udp call message :" << msg << std::endl;;
-	//});
-	//udpSend.bindAndRead(addr4);
-	//char udpmsg[] = "udp test...";
-	//udpSend.send(addr3, udpmsg, sizeof(udpmsg));
+	uv::SocketAddr addr("0.0.0.0", 8443, uv::SocketAddr::Ipv4);
+	server.bindAndListen(addr);
+#endif
 
 	loop->run();
 
