@@ -9,6 +9,7 @@
 */
 
 #include "include/Timer.hpp"
+#include "include/LogWriter.hpp"
 
 using namespace uv;
 
@@ -26,6 +27,7 @@ Timer::Timer(EventLoop * loop, uint64_t timeout, uint64_t repeat, TimerCallback 
 
 Timer::~Timer()
 {
+	uv::LogWriter::Instance()->debug("destroy timer");
 }
 
 void Timer::start()

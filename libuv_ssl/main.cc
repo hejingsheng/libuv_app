@@ -301,6 +301,17 @@ int main(int argc, char *argv[])
 #ifdef TEST_WEBSOCKET_CLIENT
 	uv::websocket::WebSocketClient *wsClient = new uv::websocket::WebSocketClient(loop);
 	uv::SocketAddr addr1("121.40.165.18", 8800);
+	wsClient->setOnConnectCallback([](int status, std::string key) {
+		std::cout << "connect status:" << status << std::endl;
+	});
+	wsClient->setOnMessageCallback([wsClient](const char *data, int len, std::string key) {
+		std::cout << "data len is:" << len << std::endl;
+		wsClient->close();
+	});
+	wsClient->setOnClosedCallback([wsClient](std::string key) {
+		std::cout << "closed need delete" << std::endl;
+		delete wsClient;
+	});
 	wsClient->connect(addr1, "/");
 #endif
 

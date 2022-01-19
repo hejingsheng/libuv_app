@@ -22,6 +22,21 @@ namespace uv
 			}
 		}
 
+		void WebSocketServer::setOnConnectCallback(OnConnectedCallback callback)
+		{
+			connCb_ = callback;
+		}
+
+		void WebSocketServer::setOnMessageCallback(OnMessageCallback callback)
+		{
+			messCb_ = callback;
+		}
+
+		void WebSocketServer::setOnClosedCallback(OnClosedCallback callback)
+		{
+			closeCb_ = callback;
+		}
+
 		void WebSocketServer::onMesage(TcpConnectionPtr conn, const char* data, ssize_t size)
 		{
 			std::string connName = conn->Name();
@@ -39,6 +54,10 @@ namespace uv
 					wsProto->doResponse(response);
 					conn->write(response.data(), response.length(), nullptr);
 					connMap_.insert(std::make_pair(connName, wsProto));
+					if (connCb_)
+					{
+						connCb_(0, connName);
+					}
 				}
 				else
 				{
@@ -67,6 +86,10 @@ namespace uv
 								closeWs(conn->Name());
 								conn->close(nullptr);
 							});
+							if (closeCb_)
+							{
+								closeCb_(connName);
+							}
 						}
 						else if (opcode == PING_FRAME)
 						{
@@ -77,6 +100,10 @@ namespace uv
 					else
 					{
 						std::cout << "recv data len:" << dest.length() << std::endl;
+						if (messCb_)
+						{
+							messCb_(dest.data(), len, connName);
+						}
 					}
 				}
 				else
@@ -149,14 +176,30 @@ namespace uv
 		void WebSocketClient::close()
 		{
 			//Ö±½Ó¹Ø±Õ socket
-			pingTimer_->close(nullptr);
 			wsProtocol_->close();
-			client_->close(nullptr);
+			pingTimer_->close([this](uv::Timer *timer) {
+				onClosed();
+			});
 		}
 
 		void WebSocketClient::setPingPeriod(int period)
 		{
 			pingPeriod_ = period;
+		}
+
+		void WebSocketClient::setOnConnectCallback(OnConnectedCallback callback)
+		{
+			connCb_ = callback;
+		}
+
+		void WebSocketClient::setOnMessageCallback(OnMessageCallback callback)
+		{
+			messCb_ = callback;
+		}
+
+		void WebSocketClient::setOnClosedCallback(OnClosedCallback callback)
+		{
+			closeCb_ = callback;
 		}
 
 		void WebSocketClient::onConnectStatus(TcpClient::ConnectStatus status)
@@ -171,7 +214,11 @@ namespace uv
 			}
 			else
 			{
-
+				close();
+				if (connCb_)
+				{
+					connCb_(-1, "");
+				}
 			}
 		}
 
@@ -191,27 +238,41 @@ namespace uv
 						//sendData(data.c_str(), len);
 						client_->write(dest.data(), dest.length(), [this](WriteInfo &winfo) {
 							//closeWs(conn->Name());
-							wsProtocol_->close();
-							client_->close(nullptr);
+							//wsProtocol_->close();
+							//client_->close(nullptr);
+							close();
 						});
 					}
 				}
 				else
 				{
-					std::cout << "recv data len:" << dest.length() << std::endl;
+					//std::cout << "recv data len:" << dest.length() << std::endl;
+					if (messCb_)
+					{
+						messCb_(dest.data(), len, "");
+					}
 				}
 			}
 			else
 			{
 				std::string response(data, size);
+				int status;
 				int ret = wsProtocol_->doResponse(response);
 				if (ret < 0)
 				{
-					client_->close(nullptr);
-					return;
+					close();
+					status = -1;
 				}
-				pingTimer_->setTimeout(pingPeriod_*1000);
-				pingTimer_->start();
+				else
+				{
+					pingTimer_->setTimeout(pingPeriod_ * 1000);
+					pingTimer_->start();
+					status = 0;
+				}
+				if (connCb_)
+				{
+					connCb_(status, "");
+				}
 			}
 		}
 
@@ -228,6 +289,16 @@ namespace uv
 			std::string dest = "";
 			int ret = wsProtocol_->encodeData(NULL, 0, PING_FRAME, dest);
 			client_->write(dest.data(), dest.length());
+		}
+
+		void WebSocketClient::onClosed()
+		{
+			client_->close([this](uv::TcpClient* handle) {
+				if (closeCb_)
+				{
+					closeCb_("");
+				}
+			});
 		}
 	};
 }
