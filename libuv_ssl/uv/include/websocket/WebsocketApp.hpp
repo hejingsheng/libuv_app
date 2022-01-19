@@ -31,15 +31,25 @@ namespace uv
 			virtual ~WebSocketClient();
 
 		public:
-			void connect(SocketAddr& addr);
+			void connect(SocketAddr& addr, std::string path);
+			void writeData(const char *data, int len, bool text);
+			void close();
+			void setPingPeriod(int period);
 
 		private:
 			void onConnectStatus(TcpClient::ConnectStatus status);
 			void onMessage(const char* data, ssize_t size);
+			void onTimer();
+			void setPingReq();
 
 		private:
 			uv::TcpClient *client_;
+			uv::Timer *pingTimer_;
 			WebSocketProtocolClient *wsProtocol_;
+
+			std::string path_;
+			std::string host_;
+			uint64_t pingPeriod_;
 		};
 	};
 }

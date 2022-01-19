@@ -6,6 +6,7 @@
 #include "uv/include/UdpListener.hpp"
 #include "app/stun.h"
 #include "uv/include/websocket/WebsocketApp.hpp"
+#include "unistd.h"
 
 #if 0
 #include <stdio.h>
@@ -281,7 +282,8 @@ private:
 };
 #define SOFTWARE_VERSION  "0.0.1"
 
-#define TEST_TLS_SERVER
+#define TEST_WEBSOCKET_CLIENT
+//#define TEST_WEBSOCKET_SERVER
 
 int main(int argc, char *argv[])
 {
@@ -290,16 +292,16 @@ int main(int argc, char *argv[])
 	std::string name = "test";
 	uv::EventLoop* loop = uv::EventLoop::DefaultLoop();
 
-#ifdef TEST_WEBSOCKET_CLIENT
-	uv::websocket::WebSocketClient wsClient(loop);
-	uv::SocketAddr addr("121.40.165.18", 8800);
-	wsClient.connect(addr);
-#endif
-
 #ifdef TEST_WEBSOCKET_SERVER
 	uv::websocket::WebSocketServer wsServer(loop);
 	uv::SocketAddr addr("0.0.0.0", 5000);
 	wsServer.bindAndListen(addr);
+#endif
+
+#ifdef TEST_WEBSOCKET_CLIENT
+	uv::websocket::WebSocketClient *wsClient = new uv::websocket::WebSocketClient(loop);
+	uv::SocketAddr addr1("121.40.165.18", 8800);
+	wsClient->connect(addr1, "/");
 #endif
 
 #ifdef TEST_STUN_SERVER

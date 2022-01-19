@@ -55,15 +55,24 @@ namespace uv
 				{
 					std::string dest = "";
 					bool finish;
-					int len = wsProto->decodeData(data, size, dest, finish);
+					WsOpCode opcode;
+					int len = wsProto->decodeData(data, size, dest, finish, opcode);
 					if (len == 0)
 					{
-						len = wsProto->encodeData("服务端接收发生错误EOF", strlen("服务端接收发生错误EOF"), dest);
-						//sendData(data.c_str(), len);
-						conn->write(dest.data(), dest.length(), [this, conn](WriteInfo &winfo) {
-							closeWs(conn->Name());
-							conn->close(nullptr);
-						});
+						if (opcode == CLOSE_FRAME)
+						{
+							len = wsProto->encodeData("服务端接收发生错误EOF", strlen("服务端接收发生错误EOF"), CLOSE_FRAME, dest);
+							//sendData(data.c_str(), len);
+							conn->write(dest.data(), dest.length(), [this, conn](WriteInfo &winfo) {
+								closeWs(conn->Name());
+								conn->close(nullptr);
+							});
+						}
+						else if (opcode == PING_FRAME)
+						{
+							int ret = wsProto->encodeData(NULL, 0, PONG_FRAME, dest);
+							conn->write(dest.data(), dest.length(), nullptr);
+						}
 					}
 					else
 					{
@@ -91,25 +100,63 @@ namespace uv
 			}
 		}
 
-		WebSocketClient::WebSocketClient(EventLoop *loop) : client_(new uv::TcpClient(loop, false))
+		WebSocketClient::WebSocketClient(EventLoop *loop) : client_(new uv::TcpClient(loop, false)), pingPeriod_(20)
 		{
 			wsProtocol_ = new WebSocketProtocolClient();
+			pingTimer_ = new uv::Timer(loop, pingPeriod_, 0, std::bind(&WebSocketClient::onTimer, this));
 		}
 
 		WebSocketClient::~WebSocketClient()
 		{
+			if (pingTimer_)
+			{
+				delete pingTimer_;
+			}
+			pingTimer_ = nullptr;
 			if (wsProtocol_)
 			{
 				delete wsProtocol_;
 			}
 			wsProtocol_ = nullptr;
+			if (client_)
+			{
+				delete client_;
+			}
+			client_ = nullptr;
 		}
 
-		void WebSocketClient::connect(SocketAddr& addr)
+		void WebSocketClient::connect(SocketAddr& addr, std::string path)
 		{
 			client_->setConnectStatusCallback(std::bind(&WebSocketClient::onConnectStatus, this, std::placeholders::_1));
 			client_->setMessageCallback(std::bind(&WebSocketClient::onMessage, this, std::placeholders::_1, std::placeholders::_2));
+
+			path_ = path;
+			host_ = addr.toStr();
 			client_->connect(addr);
+		}
+
+		void WebSocketClient::writeData(const char *data, int len, bool text)
+		{
+			if (wsProtocol_->isConnected())
+			{
+				std::string dest = "";
+				WsOpCode opcode = text ? TEXT_FRAME : BINARY_FRAME;
+				wsProtocol_->encodeData(data, len, opcode, dest);
+				client_->write(dest.data(), dest.length(), nullptr);
+			}
+		}
+
+		void WebSocketClient::close()
+		{
+			//直接关闭 socket
+			pingTimer_->close(nullptr);
+			wsProtocol_->close();
+			client_->close(nullptr);
+		}
+
+		void WebSocketClient::setPingPeriod(int period)
+		{
+			pingPeriod_ = period;
 		}
 
 		void WebSocketClient::onConnectStatus(TcpClient::ConnectStatus status)
@@ -117,10 +164,8 @@ namespace uv
 			if (status == TcpClient::ConnectStatus::OnConnectSuccess)
 			{
 				std::string handshake;
-				std::string path = "/";
-				std::string host = "121.40.165.18:8800"; 
 				std::string extensions = "ws base libuv";
-				wsProtocol_->initParam(0, path, host, extensions);
+				wsProtocol_->initParam(0, path_, host_, extensions);
 				wsProtocol_->doHandShake(handshake);
 				client_->write(handshake.data(), handshake.length(), nullptr);
 			}
@@ -136,16 +181,20 @@ namespace uv
 			{
 				std::string dest = "";
 				bool finish;
-				int len = wsProtocol_->decodeData(data, size, dest, finish);
+				WsOpCode opcode;
+				int len = wsProtocol_->decodeData(data, size, dest, finish, opcode);
 				if (len == 0)
 				{
-					len = wsProtocol_->encodeData("EOF", strlen("EOF"), dest);
-					//sendData(data.c_str(), len);
-					client_->write(dest.data(), dest.length(), [this](WriteInfo &winfo) {
-						//closeWs(conn->Name());
-						wsProtocol_->close();
-						client_->close(nullptr);
-					});
+					if (opcode == CLOSE_FRAME)
+					{
+						len = wsProtocol_->encodeData("EOF", strlen("EOF"), CLOSE_FRAME, dest);
+						//sendData(data.c_str(), len);
+						client_->write(dest.data(), dest.length(), [this](WriteInfo &winfo) {
+							//closeWs(conn->Name());
+							wsProtocol_->close();
+							client_->close(nullptr);
+						});
+					}
 				}
 				else
 				{
@@ -159,8 +208,26 @@ namespace uv
 				if (ret < 0)
 				{
 					client_->close(nullptr);
+					return;
 				}
+				pingTimer_->setTimeout(pingPeriod_*1000);
+				pingTimer_->start();
 			}
+		}
+
+		void WebSocketClient::onTimer()
+		{
+			setPingReq();
+			pingTimer_->stop();
+			pingTimer_->setTimeout(pingPeriod_ * 1000);
+			pingTimer_->start();
+		}
+
+		void WebSocketClient::setPingReq()
+		{
+			std::string dest = "";
+			int ret = wsProtocol_->encodeData(NULL, 0, PING_FRAME, dest);
+			client_->write(dest.data(), dest.length());
 		}
 	};
 }

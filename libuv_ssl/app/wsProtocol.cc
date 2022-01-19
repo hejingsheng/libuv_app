@@ -86,7 +86,7 @@ int WsHeader::decode(const char *header, int length)
 
 	byte = header[offset];
 	eof = (byte >> 7) > 0;
-	opcode = byte & 0x0F;
+	opcode = static_cast<WsOpCode>(byte & 0x0F);
 	offset++;
 	byte = header[offset];
 	mask = (byte >> 7) > 0;
@@ -138,22 +138,29 @@ WebSocketProtocolBase::~WebSocketProtocolBase()
 	bIsConnect = false;
 }
 
-int WebSocketProtocolBase::encodeData(const char *data, int len, std::string &dest)
+int WebSocketProtocolBase::encodeData(const char *data, int len, WsOpCode opcode, std::string &dest)
 {
 	WsHeader wsHeader;
 	int headerLen;
 
 	wsHeader.eof = true;
 	wsHeader.mask = false;
-	wsHeader.opcode = 1;
+	wsHeader.opcode = opcode;
 	wsHeader.len = len;
 	headerLen = wsHeader.encode(dest);
-	dest.append(data, len);
+	if (opcode == TEXT_FRAME || opcode == BINARY_FRAME)
+	{
+		dest.append(data, len);
+	}
+	else
+	{
+		len = 0;
+	}
 	//memcpy(dest + headerLen, data, len);
 	return headerLen + len;
 }
 
-int WebSocketProtocolBase::decodeData(const char *data, int len, std::string &dest, bool &finish)
+int WebSocketProtocolBase::decodeData(const char *data, int len, std::string &dest, bool &finish, WsOpCode &opcode)
 {
 	WsHeader wsHeader;
 	int headerLen;
@@ -176,6 +183,7 @@ int WebSocketProtocolBase::decodeData(const char *data, int len, std::string &de
 		//memcpy(dest, realData, wsHeader.len);
 	}
 	finish = wsHeader.eof;
+	opcode = wsHeader.opcode;
 	return wsHeader.len;
 }
 

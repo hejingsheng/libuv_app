@@ -6,16 +6,26 @@
 const std::string CRLF = "\r\n";
 const uint16_t MAX_UINT16 = 65535;
 
+enum WsOpCode
+{
+	CONTINUATION_FRAME = 0,
+	TEXT_FRAME = 1,
+	BINARY_FRAME = 2,
+	CLOSE_FRAME = 8,
+	PING_FRAME = 9,
+	PONG_FRAME = 10,
+};
+
 //rfc6455
 struct WsHeader
 {
 	bool eof;
-	int opcode;
+	WsOpCode opcode;
 	bool mask;
 	char mask_key[4];
 	uint64_t len;
 
-	WsHeader() :eof(false), opcode(0), mask(false), len(0)
+	WsHeader() :eof(false), opcode(CONTINUATION_FRAME), mask(false), len(0)
 	{ 
 		mask_key[0] = mask_key[1] = mask_key[2] = mask_key[3] = 0x00;
 	}
@@ -34,8 +44,8 @@ public:
 public:
 	virtual int doHandShake(std::string &handshakedata) = 0;
 	virtual int doResponse(std::string &responsedata) = 0;
-	int encodeData(const char *data, int len, std::string &dest);
-	int decodeData(const char *data, int len, std::string &dest, bool &finish);
+	int encodeData(const char *data, int len, WsOpCode opcode, std::string &dest);
+	int decodeData(const char *data, int len, std::string &dest, bool &finish, WsOpCode &opcode);
 	bool isConnected() const { return bIsConnect; }
 	void close();
 public:
