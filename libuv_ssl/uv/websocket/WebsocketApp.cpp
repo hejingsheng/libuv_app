@@ -9,7 +9,7 @@ namespace uv
 		WebSocketServer::WebSocketServer(EventLoop *loop) : uv::TcpServer(loop, false)
 		{
 			setMessageCallback(std::bind(&WebSocketServer::onMesage, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-			//setConnectCloseCallback(std::bind(&WebSocketServer::onClose, this, std::placeholders::_1));
+			setConnectCloseCallback(std::bind(&WebSocketServer::onClose, this, std::placeholders::_1));
 		}
 
 		WebSocketServer::~WebSocketServer()
@@ -35,6 +35,21 @@ namespace uv
 		void WebSocketServer::setOnClosedCallback(OnClosedCallback callback)
 		{
 			closeCb_ = callback;
+		}
+
+		void WebSocketServer::writeData(std::string key, const char *data, int len, int &error)
+		{
+			WebSocketProtocolBase *wsProto;
+			std::string dest = "";
+			int ret;
+			wsProto = connMap_[key];
+			if (wsProto == nullptr)
+			{
+				error = -1;
+				return;
+			}
+			ret = wsProto->encodeData(data, len, TEXT_FRAME, dest);
+			writeInLoop(key, dest.data(), dest.length(), nullptr);
 		}
 
 		void WebSocketServer::onMesage(TcpConnectionPtr conn, const char* data, ssize_t size)
@@ -110,6 +125,16 @@ namespace uv
 				{
 					//
 				}
+			}
+		}
+
+		void WebSocketServer::onClose(std::weak_ptr<TcpConnection> conn)
+		{
+			TcpConnectionPtr ptr = conn.lock();
+			if (ptr != nullptr)
+			{
+				std::string connName = ptr->Name();
+				closeWs(connName);
 			}
 		}
 

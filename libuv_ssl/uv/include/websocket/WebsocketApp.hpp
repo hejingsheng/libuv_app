@@ -22,10 +22,12 @@ namespace uv
 			void setOnConnectCallback(OnConnectedCallback callback);
 			void setOnMessageCallback(OnMessageCallback callback);
 			void setOnClosedCallback(OnClosedCallback callback);
+			void writeData(std::string key, const char *data, int len, int &error);
 
 		private:
 			void closeWs(std::string connName);
 			void onMesage(TcpConnectionPtr conn, const char* data, ssize_t size);
+			void onClose(std::weak_ptr<TcpConnection> conn);
 
 		private:
 			std::unordered_map<std::string, WebSocketProtocolBase*> connMap_;

@@ -66,7 +66,11 @@ TcpConnection::TcpConnection(EventLoop* loop, std::string& name, UVTcpPtr client
     buffer_(nullptr),
     onMessageCallback_(nullptr),
     onConnectCloseCallback_(nullptr),
-    closeCompleteCallback_(nullptr)
+    closeCompleteCallback_(nullptr),
+	ssl_(nullptr),
+	ctx_(nullptr),
+	rbio_(nullptr),
+	wbio_(nullptr)
 {
     handle_->data = static_cast<void*>(this);
     ::uv_read_start((uv_stream_t*)handle_.get(),

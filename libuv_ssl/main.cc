@@ -282,8 +282,8 @@ private:
 };
 #define SOFTWARE_VERSION  "0.0.1"
 
-#define TEST_WEBSOCKET_CLIENT
-//#define TEST_WEBSOCKET_SERVER
+//#define TEST_WEBSOCKET_CLIENT
+#define TEST_WEBSOCKET_SERVER
 
 int main(int argc, char *argv[])
 {
@@ -295,6 +295,17 @@ int main(int argc, char *argv[])
 #ifdef TEST_WEBSOCKET_SERVER
 	uv::websocket::WebSocketServer wsServer(loop);
 	uv::SocketAddr addr("0.0.0.0", 5000);
+	wsServer.setOnConnectCallback([](int status, std::string key) {
+		std::cout << "one client connect:" << key << std::endl;
+	});
+	wsServer.setOnMessageCallback([&](const char *data, int len, std::string key) {
+		int error;
+		std::cout << "recv one client data:" << key << std::endl;
+		wsServer.writeData(key, data, len, error);
+	});
+	wsServer.setOnClosedCallback([](std::string key) {
+		std::cout << "on client disconnect:" << key << std::endl;
+	});
 	wsServer.bindAndListen(addr);
 #endif
 
